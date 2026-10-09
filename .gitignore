@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-ssr/
+.wrangler/
+.env
+.env.local
+.env.development
+.env.*.local
