@@ -123,12 +123,14 @@ export default function ProjectPage() {
 
 function ProjectInfo({ p, editable, onSaved }: { p: Project; editable: boolean; onSaved: () => void }) {
   const [edit, setEdit] = useState(false);
+  const [pname, setPname] = useState(p.name);
+  const [loc, setLoc] = useState(p.location || "");
   const [desc, setDesc] = useState(p.description || "");
   const [tags, setTags] = useState((p.tags || []).join(", "));
   const [err, setErr] = useState<unknown>(null);
   async function save() {
     try {
-      await api("PATCH", `/api/v1/projects/${p.id}`, { description: desc, tags: tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 20) });
+      await api("PATCH", `/api/v1/projects/${p.id}`, { name: pname.trim() || p.name, location: loc.trim(), description: desc, tags: tags.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 20) });
       setEdit(false); setErr(null); onSaved();
     } catch (e) { setErr(e); }
   }
@@ -137,12 +139,16 @@ function ProjectInfo({ p, editable, onSaved }: { p: Project; editable: boolean; 
       <div className="mt-2 text-sm">
         {p.description ? <p className="whitespace-pre-line text-slate-700">{p.description}</p> : <p className="text-slate-400">Chưa có mô tả.</p>}
         <div className="mt-1 flex flex-wrap gap-1">{(p.tags || []).map((t) => <Badge key={t}>{t}</Badge>)}
-          {editable && <Button variant="ghost" onClick={() => setEdit(true)}>Sửa mô tả / nhãn</Button>}</div>
+          {editable && <Button variant="ghost" onClick={() => setEdit(true)}>Sửa tên / mô tả / nhãn</Button>}</div>
       </div>
     );
   }
   return (
     <div className="mt-2 grid gap-2 text-sm">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Field label="Tên dự án"><input className={inputCls} value={pname} maxLength={200} onChange={(e) => setPname(e.target.value)} /></Field>
+        <Field label="Địa điểm"><input className={inputCls} value={loc} maxLength={200} onChange={(e) => setLoc(e.target.value)} /></Field>
+      </div>
       <Field label="Mô tả"><textarea className={`${inputCls} h-20`} value={desc} onChange={(e) => setDesc(e.target.value)} /></Field>
       <Field label="Nhãn (phân cách bằng dấu phẩy)"><input className={inputCls} value={tags} onChange={(e) => setTags(e.target.value)} /></Field>
       <ErrorBox error={err} />
