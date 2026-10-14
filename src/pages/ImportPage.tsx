@@ -6,7 +6,7 @@ import { Badge, Button, Card, ErrorBox, Table } from "../components/ui";
 import { useScenario } from "./ScenarioShell";
 
 export default function ImportPage() {
-  const { scenario, editable, refetch } = useScenario();
+  const { scenario, editable, readOnlyReason, refetch } = useScenario();
   const qc = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [job, setJob] = useState<ImportJob | null>(null);
@@ -74,7 +74,7 @@ export default function ImportPage() {
           </div>
           <p className="mt-2 text-xs text-slate-500">Ghi là nguyên khối: còn lỗi mức error thì không ghi gì. Phần có trong file (dữ liệu, layout, đội thiết bị) sẽ thay thế phần tương ứng của phương án.</p>
         </Card>
-      ) : <p className="text-sm text-slate-500">Phương án chỉ xem – không nhập được.</p>}
+      ) : <p className="rounded border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">Phương án chỉ xem – không nhập được. {readOnlyReason}</p>}
       <ErrorBox error={err} />
       {msg && <p className="rounded bg-green-50 p-2 text-sm text-green-800">{msg}</p>}
       {job && (

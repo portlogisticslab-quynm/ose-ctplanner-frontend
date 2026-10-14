@@ -12,7 +12,7 @@ export default function Shell() {
     `rounded px-2 py-1 text-sm ${isActive ? "bg-white/20 text-white" : "text-white/80 hover:text-white"}`;
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="bg-navy text-white">
+      <header className="print:hidden bg-navy text-white">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-3 px-4 py-2">
           <span className="font-semibold">OSE Terminal Planner</span>
           <nav className="flex flex-wrap gap-1">
@@ -50,7 +50,7 @@ export default function Shell() {
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-4">
         <Outlet />
       </main>
-      <footer className="py-3 text-center text-xs text-slate-400">OSE Container Terminal Layout Planner v{pkg.version} © 2025 portlogistics.vn - portlogistics.ose.vn . All rights reserved</footer>
+      <footer className="print:hidden py-3 text-center text-xs text-slate-400">OSE Container Terminal Layout Planner v{pkg.version} © 2025 portlogistics.vn - portlogistics.ose.vn . All rights reserved</footer>
     </div>
   );
 }

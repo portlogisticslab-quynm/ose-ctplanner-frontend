@@ -18,6 +18,7 @@ const ImportPage = lazy(() => import("./pages/ImportPage"));
 const CapacityPage = lazy(() => import("./pages/CapacityPage"));
 const SimulationPage = lazy(() => import("./pages/SimulationPage"));
 const ThreeDPage = lazy(() => import("./pages/ThreeDPage"));
+const PlotsPage = lazy(() => import("./pages/PlotsPage"));
 const YardOpsPage = lazy(() => import("./pages/YardOpsPage"));
 const ComparePage = lazy(() => import("./pages/ComparePage"));
 const MasterDataPage = lazy(() => import("./pages/MasterDataPage"));
@@ -47,6 +48,7 @@ function App() {
           <Route path="yard-ops" element={<YardOpsPage />} />
           <Route path="simulation" element={<SimulationPage />} />
           <Route path="3d" element={<ThreeDPage />} />
+          <Route path="plots" element={<PlotsPage />} />
         </Route>
         <Route path="/compare" element={<ComparePage />} />
         <Route path="/master-data" element={<MasterDataPage />} />

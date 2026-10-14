@@ -4,3 +4,11 @@
 
 html, body, #root { height: 100%; }
 body { font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; color: #1f2937; }
+
+/* V1.2 "Plot results": print / save as PDF – one column, charts not split across pages */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  body { background: #fff !important; }
+  .plots-page .grid { display: block !important; }
+  .plot-card { break-inside: avoid; page-break-inside: avoid; margin-bottom: 8mm; }
+}
