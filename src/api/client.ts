@@ -43,12 +43,16 @@ export function setToken(token: string | null): void {
 }
 
 let preferred = 0; // index of the base that answered last
+let preferredAt = 0; // V1.4.1: when we moved off the home base
+const RETRY_HOME_MS = 60_000;
 // V1.4: send the hub cookie ose_pass (Domain=.ose.vn) to the API once the paywall is on (build with VITE_OSE_PASS=1;
 // the backend then allows credentials). Off: no cookies, exactly as before.
 const CREDENTIALS: RequestCredentials = env.VITE_OSE_PASS === "1" ? "include" : "same-origin";
 
 async function oseFetch(path: string, init: RequestInit): Promise<Response> {
   let lastErr: unknown = null;
+  // V1.4.1: after a failover, try the home base (Worker) again once a minute
+  if (preferred !== 0 && Date.now() - preferredAt > RETRY_HOME_MS) preferred = 0;
   for (let k = 0; k < BASES.length; k++) {
     const i = (preferred + k) % BASES.length;
     try {
@@ -57,6 +61,7 @@ async function oseFetch(path: string, init: RequestInit): Promise<Response> {
         lastErr = new Error(`HTTP ${res.status}`);
         continue;
       }
+      if (i !== preferred && i !== 0) preferredAt = Date.now();
       preferred = i;
       const served = res.headers.get("X-Served-By") || (i === 0 ? "home" : "render");
       useServerStatus.getState().setServedBy(served);
