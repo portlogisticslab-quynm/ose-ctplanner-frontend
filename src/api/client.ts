@@ -43,15 +43,34 @@ export function setToken(token: string | null): void {
 }
 
 let preferred = 0; // index of the base that answered last
-let preferredAt = 0; // V1.4.1: when we moved off the home base
+let preferredAt = 0; // V1.4.1: when we moved off the home base; retry home after RETRY_HOME_MS
 const RETRY_HOME_MS = 60_000;
 // V1.4: send the hub cookie ose_pass (Domain=.ose.vn) to the API once the paywall is on (build with VITE_OSE_PASS=1;
 // the backend then allows credentials). Off: no cookies, exactly as before.
 const CREDENTIALS: RequestCredentials = env.VITE_OSE_PASS === "1" ? "include" : "same-origin";
 
+// V1.4.1: a preview ("tính tạm") lives in the memory of the server that computed it. When that was Render, keep
+// talking to Render directly for it – through the Worker the request would go back home once home is up again.
+const PREVIEW_ON_RENDER = new Set<string>();
+const PREVIEW_PATH = /^\/api\/v1\/previews\/([^/?]+)/;
+
+export function notePreviewServer(r: unknown): void {
+  const p = r as { id?: string; preview?: boolean; server?: string } | null;
+  if (p && p.preview && p.id && p.server === "render" && BASES.length > 1) PREVIEW_ON_RENDER.add(p.id);
+}
+
 async function oseFetch(path: string, init: RequestInit): Promise<Response> {
+  const pin = path.match(PREVIEW_PATH);
+  if (pin && PREVIEW_ON_RENDER.has(pin[1])) {
+    try {
+      return await fetch(BASES[BASES.length - 1] + path, { credentials: CREDENTIALS, ...init });
+    } catch (e) {
+      throw new ApiError(0, "NETWORK", "Không kết nối được máy chủ dự phòng", String(e));
+    }
+  }
   let lastErr: unknown = null;
-  // V1.4.1: after a failover, try the home base (Worker) again once a minute
+  // V1.4.1: after a failover, go back to the home base (Worker) once a minute instead of staying on Render
+  // until the page is reloaded (the Worker itself picks home or Render)
   if (preferred !== 0 && Date.now() - preferredAt > RETRY_HOME_MS) preferred = 0;
   for (let k = 0; k < BASES.length; k++) {
     const i = (preferred + k) % BASES.length;
@@ -97,6 +116,7 @@ export async function api<T>(method: string, path: string, body?: Body, headers:
     throw new ApiError(res.status, err.error?.code || "HTTP_ERROR", err.error?.message || `HTTP ${res.status}`,
       err.error?.details, err.request_id);
   }
+  notePreviewServer(data);
   return data as T;
 }
 

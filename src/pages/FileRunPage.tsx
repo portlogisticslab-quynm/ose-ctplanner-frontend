@@ -187,7 +187,7 @@ export default function FileRunPage() {
             {running && job && (
               <div>
                 <div className="h-3 w-full overflow-hidden rounded bg-slate-200"><div className="h-3 bg-navy transition-all" style={{ width: `${Math.round(job.progress * 100)}%` }} /></div>
-                <p className="mt-1 text-xs text-slate-500">Đang mô phỏng {Math.round(job.progress * 100)}% – giữ trang này mở</p>
+                <p className="mt-1 text-xs text-slate-500">Đang mô phỏng {(job.progress * 100).toFixed(1)}% – giữ trang này mở</p>
               </div>
             )}
           </div>

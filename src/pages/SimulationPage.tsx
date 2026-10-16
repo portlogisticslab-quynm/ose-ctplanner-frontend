@@ -264,14 +264,14 @@ export default function SimulationPage() {
         {active && run.data && (
           <div className="mt-3">
             <div className="h-3 w-full overflow-hidden rounded bg-slate-200"><div className="h-3 bg-navy transition-all" style={{ width: `${Math.round(run.data.progress * 100)}%` }} /></div>
-            <p className="mt-1 text-xs text-slate-500">{run.data.status === "queued" ? "Đang chờ worker…" : `Đang chạy ${Math.round(run.data.progress * 100)}%`}{run.data.preview ? " · tính tạm trên máy chủ dự phòng, giữ trang này mở" : ""}</p>
+            <p className="mt-1 text-xs text-slate-500">{run.data.status === "queued" ? "Đang chờ worker…" : `Đang chạy ${(run.data.progress * 100).toFixed(1)}%`}{run.data.preview ? " · tính tạm trên máy chủ dự phòng, giữ trang này mở" : ""}</p>
           </div>
         )}
         {run.data && <p className="mt-2 text-xs text-slate-500">model {run.data.model_version} · engine {run.data.engine_version} · input {run.data.input_hash.slice(0, 12)} · checksum {run.data.checksum.slice(0, 12) || "—"} · {run.data.elapsed_s ? `${run.data.elapsed_s.toFixed(1)} s` : ""}</p>}
         {backup && canRun && (
           <p className="mt-2 text-xs text-amber-800">
             Máy chủ dự phòng (chỉ đọc): mô phỏng tạm chạy trên dữ liệu đồng bộ gần nhất, tối đa 10 replication / 120 ngày đo / 15 phút,
-            mỗi lúc một mô phỏng. Kết quả không lưu vào lịch sử và mất sau 30 phút hoặc khi tải lại trang – tải Excel / PDF / JSON hoặc PNG/CSV ở tab Plot results để giữ lại.
+            mỗi lúc một mô phỏng; máy chủ dự phòng chậm hơn máy nhà nhiều lần – nên thử 1–2 replication, 10–15 ngày đo. Kết quả không lưu vào lịch sử và mất sau 30 phút hoặc khi tải lại trang – tải Excel / PDF / JSON hoặc PNG/CSV ở tab Plot results để giữ lại.
           </p>
         )}
         <div className="mt-2"><ErrorBox error={err} /></div>
