@@ -24,6 +24,7 @@ const ComparePage = lazy(() => import("./pages/ComparePage"));
 const MasterDataPage = lazy(() => import("./pages/MasterDataPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const AuditPage = lazy(() => import("./pages/AuditPage"));
+const FileRunPage = lazy(() => import("./pages/FileRunPage"));
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 10_000 } } });
 
@@ -51,6 +52,7 @@ function App() {
           <Route path="plots" element={<PlotsPage />} />
         </Route>
         <Route path="/compare" element={<ComparePage />} />
+        <Route path="/file-run" element={<FileRunPage />} />
         <Route path="/master-data" element={<MasterDataPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/audit" element={<AuditPage />} />

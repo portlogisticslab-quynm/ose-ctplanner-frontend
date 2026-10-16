@@ -8,6 +8,7 @@ import PlotCard, { PLOT_REGISTRY, saveBlob, slug } from "../components/PlotCard"
 import { useRuns } from "../components/RunPanel";
 import { Button, Card, Empty, Field, inputCls } from "../components/ui";
 import { dateTime } from "../lib/format";
+import { isPreviewId, usePreview, usePreviews } from "../store/previews";
 import { capacityPlots, comparePlot, simulationPlots, yardPlanPlots, type CompareItem, type SimKpi } from "../lib/plots";
 import { useKpiDefs } from "./CapacityPage";
 import { useScenario } from "./ScenarioShell";
@@ -18,21 +19,27 @@ const SECTIONS: { key: Section; label: string }[] = [
   { key: "simulation", label: "Mô phỏng" }, { key: "compare", label: "So sánh phương án" },
 ];
 
-function RunSelect({ label, runs, value, onChange }: { label: string; runs: Run[] | undefined; value: string; onChange: (v: string) => void }) {
+function RunSelect({ label, runs, preview, value, onChange }: {
+  label: string; runs: Run[] | undefined; preview?: Run; value: string; onChange: (v: string) => void;
+}) {
   const ok = (runs || []).filter((r) => r.status === "succeeded");
   return (
     <Field label={label}>
       <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{ok.length ? "— không dùng —" : "— chưa có lần chạy thành công —"}</option>
+        <option value="">{ok.length || preview ? "— không dùng —" : "— chưa có lần chạy thành công —"}</option>
+        {preview?.status === "succeeded" && <option value={preview.id}>Kết quả tạm (chưa lưu) · {dateTime(preview.created_at)}</option>}
         {ok.map((r) => <option key={r.id} value={r.id}>{dateTime(r.created_at)} · {r.input_hash.slice(0, 8)}</option>)}
       </select>
     </Field>
   );
 }
 
-function useRunResult(id: string) {
-  return useQuery({ queryKey: ["run", id], enabled: !!id, staleTime: 600_000, queryFn: () => api<Run>("GET", `/api/v1/runs/${id}`) });
+function useRunResult(id: string): { data: Run | undefined } {
+  const prev = usePreviews((s) => (isPreviewId(id) ? Object.values(s.byKey).find((r) => r.id === id) : undefined));
+  const q = useQuery({ queryKey: ["run", id], enabled: !!id && !isPreviewId(id), staleTime: 600_000, queryFn: () => api<Run>("GET", `/api/v1/runs/${id}`) });
+  return isPreviewId(id) ? { data: prev } : q;   // V1.3: previews live in the browser, not in the database
 }
+const okPreview = (r: Run | undefined) => (r?.status === "succeeded" ? r : undefined);
 const firstOk = (rs: Run[] | undefined) => rs?.find((r) => r.status === "succeeded")?.id || "";
 
 export default function PlotsPage() {
@@ -45,9 +52,15 @@ export default function PlotsPage() {
   const [capId, setCapId] = useState<string | null>(null);
   const [ypId, setYpId] = useState<string | null>(null);
   const [simId, setSimId] = useState<string | null>(null);
-  const cap = useRunResult(capId ?? firstOk(capRuns.data));
-  const yp = useRunResult(ypId ?? firstOk(ypRuns.data));
-  const sim = useRunResult(simId ?? firstOk(simRuns.data));
+  const capPrev = okPreview(usePreview(scenario.id, "capacity"));
+  const ypPrev = okPreview(usePreview(scenario.id, "yard_plan"));
+  const simPrev = okPreview(usePreview(scenario.id, "simulation"));
+  const capSel = capId ?? (capPrev?.id || firstOk(capRuns.data));
+  const ypSel = ypId ?? (ypPrev?.id || firstOk(ypRuns.data));
+  const simSel = simId ?? (simPrev?.id || firstOk(simRuns.data));
+  const cap = useRunResult(capSel);
+  const yp = useRunResult(ypSel);
+  const sim = useRunResult(simSel);
   const [show, setShow] = useState<Record<Section, boolean>>({ capacity: true, yard_plan: true, simulation: true, compare: true });
   const [repKpi, setRepKpi] = useState("SIM_VESSEL_WAIT_H");
   const prefix = `ctplanner_${slug(project.code)}_${slug(scenario.name)}`;
@@ -116,9 +129,9 @@ export default function PlotsPage() {
         <Button variant="secondary" onClick={() => window.print()}>In / lưu PDF</Button>
       </span>}>
         <div className="grid gap-3 print:hidden sm:grid-cols-3">
-          <RunSelect label="Lần chạy sức chứa & năng lực" runs={capRuns.data} value={capId ?? firstOk(capRuns.data)} onChange={setCapId} />
-          <RunSelect label="Lần chạy kế hoạch khai thác bãi" runs={ypRuns.data} value={ypId ?? firstOk(ypRuns.data)} onChange={setYpId} />
-          <RunSelect label="Lần chạy mô phỏng" runs={simRuns.data} value={simId ?? firstOk(simRuns.data)} onChange={setSimId} />
+          <RunSelect label="Lần chạy sức chứa & năng lực" runs={capRuns.data} preview={capPrev} value={capSel} onChange={setCapId} />
+          <RunSelect label="Lần chạy kế hoạch khai thác bãi" runs={ypRuns.data} preview={ypPrev} value={ypSel} onChange={setYpId} />
+          <RunSelect label="Lần chạy mô phỏng" runs={simRuns.data} preview={simPrev} value={simSel} onChange={setSimId} />
         </div>
         <div className="mt-3 flex flex-wrap gap-4 text-sm print:hidden">
           {SECTIONS.map((s) => (
@@ -128,7 +141,7 @@ export default function PlotsPage() {
           ))}
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Mặc định lấy lần chạy thành công mới nhất của mỗi loại. Chạy tính toán ở các tab Sức chứa & năng lực, Khai thác bãi, Mô phỏng. Mỗi biểu đồ có nút
+          Mặc định lấy lần chạy thành công mới nhất của mỗi loại (trên máy chủ dự phòng: kết quả tạm mới nhất, nếu có). Chạy tính toán ở các tab Sức chứa & năng lực, Khai thác bãi, Mô phỏng. Mỗi biểu đồ có nút
           PNG (kèm tiêu đề) và CSV (số liệu của biểu đồ); "In / lưu PDF" in toàn bộ trang bằng hộp thoại in của trình duyệt (chọn "Lưu dưới dạng PDF").
         </p>
       </Card>

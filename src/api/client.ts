@@ -43,13 +43,16 @@ export function setToken(token: string | null): void {
 }
 
 let preferred = 0; // index of the base that answered last
+// V1.4: send the hub cookie ose_pass (Domain=.ose.vn) to the API once the paywall is on (build with VITE_OSE_PASS=1;
+// the backend then allows credentials). Off: no cookies, exactly as before.
+const CREDENTIALS: RequestCredentials = env.VITE_OSE_PASS === "1" ? "include" : "same-origin";
 
 async function oseFetch(path: string, init: RequestInit): Promise<Response> {
   let lastErr: unknown = null;
   for (let k = 0; k < BASES.length; k++) {
     const i = (preferred + k) % BASES.length;
     try {
-      const res = await fetch(BASES[i] + path, init);
+      const res = await fetch(BASES[i] + path, { credentials: CREDENTIALS, ...init });
       if (FAILOVER_STATUS.has(res.status) && k < BASES.length - 1) {
         lastErr = new Error(`HTTP ${res.status}`);
         continue;

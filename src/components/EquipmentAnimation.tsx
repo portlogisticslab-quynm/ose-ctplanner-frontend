@@ -43,7 +43,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
 
   const q = useQuery({
     queryKey: ["replay", runId, win[0], win[1]],
-    queryFn: () => api<Replay>("GET", `/api/v1/runs/${runId}/replay?t0_h=${win[0]}&t1_h=${win[1]}`),
+    queryFn: () => api<Replay>("GET", `/api/v1/${runId.startsWith("preview-") ? "previews" : "runs"}/${runId}/replay?t0_h=${win[0]}&t1_h=${win[1]}`),
     staleTime: 3_600_000,
   });
   const rep = q.data;

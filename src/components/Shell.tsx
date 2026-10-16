@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useServerStatus } from "../store/serverStatus";
 import { can, useAuth } from "../store/auth";
+import { useAccess } from "../store/access";
 import { ROLE_LABEL } from "../lib/format";
 import pkg from "../../package.json";   // footer version follows package.json
 
@@ -8,6 +9,7 @@ export default function Shell() {
   const { user, logout } = useAuth();
   const { servedBy, readOnly } = useServerStatus();
   const nav = useNavigate();
+  const access = useAccess();
   const link = ({ isActive }: { isActive: boolean }) =>
     `rounded px-2 py-1 text-sm ${isActive ? "bg-white/20 text-white" : "text-white/80 hover:text-white"}`;
   return (
@@ -18,6 +20,7 @@ export default function Shell() {
           <nav className="flex flex-wrap gap-1">
             <NavLink to="/projects" className={link}>Dự án</NavLink>
             <NavLink to="/compare" className={link}>So sánh</NavLink>
+            {user && <NavLink to="/file-run" className={link}>Tính từ file</NavLink>}
             <NavLink to="/master-data" className={link}>Danh mục</NavLink>
             {user && <NavLink to="/audit" className={link}>Nhật ký</NavLink>}
             {can(user, "admin") && <NavLink to="/admin" className={link}>Quản trị</NavLink>}
@@ -36,7 +39,13 @@ export default function Shell() {
       </header>
       {(servedBy === "render" || readOnly) && (
         <div className="bg-amber-100 px-4 py-1.5 text-center text-sm text-amber-900">
-          Đang chạy máy chủ dự phòng – chỉ đọc. Không lưu được thay đổi và không chạy được tính toán mới.
+          Đang chạy máy chủ dự phòng – chỉ đọc. Không lưu được thay đổi; vẫn “Tính tạm” được (kết quả không lưu).
+        </div>
+      )}
+      {access.plan === "demo" && (
+        <div className="bg-violet-100 px-4 py-1.5 text-center text-sm text-violet-900">
+          Bản DEMO – xem dự án mẫu và kết quả. Chạy tính, tính từ file cần gói ctplanner:{" "}
+          <a className="font-semibold underline" href={access.account_url} target="_blank" rel="noreferrer">mua / đăng nhập tại Port & Logistics Hub</a>
         </div>
       )}
       {servedBy === "offline" && (

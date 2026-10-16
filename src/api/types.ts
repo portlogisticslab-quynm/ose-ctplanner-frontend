@@ -61,6 +61,7 @@ export interface Run {
   model_version: string; engine_version: string; params: Record<string, unknown>; progress: number;
   started_at: string | null; finished_at: string | null; elapsed_s: number | null; error: unknown; checksum: string; created_at: string;
   seed?: number | null; replications?: number | null; cancel_requested?: boolean;
+  preview?: boolean;   // V1.3: result not stored (read-only backup server)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   result?: any;
 }

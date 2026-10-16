@@ -8,6 +8,7 @@ import EquipmentAnimation from "../components/EquipmentAnimation";
 import { blockOccupancy, HEAT_GRADIENT, heat } from "../lib/occupancy";
 import { Badge, Button, Card, Chart, Empty, ErrorBox, Field, inputCls, Table } from "../components/ui";
 import { dateTime, fmt, pct } from "../lib/format";
+import { isPreviewId, previewReport, saveRunJson, useBackupMode, usePreview, usePreviews } from "../store/previews";
 import { bounds, centroid, ringOf, type Pt } from "../lib/geometry";
 import { useScenario } from "./ScenarioShell";
 
@@ -139,17 +140,26 @@ export default function SimulationPage() {
   const [selected, setSelected] = useState("");
   const [err, setErr] = useState<unknown>(null);
   const [seriesKey, setSeriesKey] = useState<keyof Frame>("inventory_teu");
+  const backup = useBackupMode();
+  const preview = usePreview(scenario.id, "simulation");
+  const putPreview = usePreviews((st) => st.put);
   const runs = useQuery({
     queryKey: ["runs", scenario.id, "simulation"],
     queryFn: () => api<Run[]>("GET", `/api/v1/scenarios/${scenario.id}/runs?run_type=simulation`),
   });
   useEffect(() => {
-    if (!selected && runs.data?.length) setSelected((runs.data.find((r) => r.status === "succeeded") || runs.data[0]).id);
-  }, [runs.data, selected]);
+    if (!selected && preview) setSelected(preview.id);
+    else if (!selected && runs.data?.length) setSelected((runs.data.find((r) => r.status === "succeeded") || runs.data[0]).id);
+  }, [runs.data, selected, preview]);
   const run = useQuery({
     queryKey: ["run", selected],
     enabled: !!selected,
-    queryFn: () => api<Run>("GET", `/api/v1/runs/${selected}`),
+    queryFn: async () => {
+      if (!isPreviewId(selected)) return api<Run>("GET", `/api/v1/runs/${selected}`);
+      const r = await api<Run>("GET", `/api/v1/previews/${selected}`);   // V1.3: preview kept in server memory
+      putPreview(r);
+      return r;
+    },
   });
   const active = run.data && (run.data.status === "queued" || run.data.status === "running");
   const refetchRun = run.refetch;
@@ -168,13 +178,20 @@ export default function SimulationPage() {
   async function submit() {
     setErr(null);
     try {
+      if (backup) {   // V1.3: read-only backup → preview, not stored
+        const p = await api<Run>("POST", `/api/v1/scenarios/${scenario.id}/preview/simulation`, form);
+        putPreview(p);
+        setSelected(p.id);
+        return;
+      }
       const r = await api<Run>("POST", `/api/v1/scenarios/${scenario.id}/runs/simulation`, form);
       await qc.invalidateQueries({ queryKey: ["runs", scenario.id, "simulation"] });
       setSelected(r.id);
     } catch (e) { setErr(e); }
   }
   async function cancel() {
-    try { await api("POST", `/api/v1/runs/${selected}/cancel`); void run.refetch(); } catch (e) { setErr(e); }
+    const path = isPreviewId(selected) ? `/api/v1/previews/${selected}/cancel` : `/api/v1/runs/${selected}/cancel`;
+    try { await api("POST", path); void run.refetch(); } catch (e) { setErr(e); }
   }
   async function report(format: string) {
     try {
@@ -228,27 +245,40 @@ export default function SimulationPage() {
           </div>
         )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {canRun && <Button disabled={!!active} onClick={() => void submit()}>Gửi mô phỏng</Button>}
+          {canRun && <Button disabled={!!active} onClick={() => void submit()}>{backup ? "Mô phỏng tạm (không lưu)" : "Gửi mô phỏng"}</Button>}
           <select className={inputCls} value={selected} onChange={(e) => setSelected(e.target.value)}>
             <option value="">— chọn lần chạy —</option>
+            {preview && <option value={preview.id}>Kết quả tạm (chưa lưu) · {dateTime(preview.created_at)} · seed {preview.seed ?? "—"} · {preview.replications ?? "—"} rep</option>}
             {runs.data?.map((r) => <option key={r.id} value={r.id}>{dateTime(r.created_at)} · {r.status} · seed {r.seed ?? "—"} · {r.replications ?? "—"} rep</option>)}
           </select>
           {run.data && <Badge tone={run.data.status === "succeeded" ? "green" : run.data.status === "failed" ? "red" : run.data.status === "cancelled" ? "amber" : "blue"}>{run.data.status}</Badge>}
           {active && canRun && <Button variant="danger" onClick={() => void cancel()}>Huỷ</Button>}
-          {res && <><Button variant="secondary" onClick={() => void report("xlsx")}>Excel</Button><Button variant="secondary" onClick={() => void report("pdf")}>PDF</Button></>}
+          {run.data?.preview && <Badge tone="amber">tạm – không lưu</Badge>}
+          {res && run.data?.preview && <>
+            <Button variant="secondary" onClick={() => void previewReport(selected, "simulation", "xlsx").catch(setErr)}>Excel</Button>
+            <Button variant="secondary" onClick={() => void previewReport(selected, "simulation", "pdf").catch(setErr)}>PDF</Button>
+            <Button variant="secondary" onClick={() => saveRunJson(run.data as Run, "ctplanner_simulation_tam.json")}>JSON</Button>
+          </>}
+          {res && !run.data?.preview && <><Button variant="secondary" onClick={() => void report("xlsx")}>Excel</Button><Button variant="secondary" onClick={() => void report("pdf")}>PDF</Button></>}
         </div>
         {active && run.data && (
           <div className="mt-3">
             <div className="h-3 w-full overflow-hidden rounded bg-slate-200"><div className="h-3 bg-navy transition-all" style={{ width: `${Math.round(run.data.progress * 100)}%` }} /></div>
-            <p className="mt-1 text-xs text-slate-500">{run.data.status === "queued" ? "Đang chờ worker…" : `Đang chạy ${Math.round(run.data.progress * 100)}%`}</p>
+            <p className="mt-1 text-xs text-slate-500">{run.data.status === "queued" ? "Đang chờ worker…" : `Đang chạy ${Math.round(run.data.progress * 100)}%`}{run.data.preview ? " · tính tạm trên máy chủ dự phòng, giữ trang này mở" : ""}</p>
           </div>
         )}
         {run.data && <p className="mt-2 text-xs text-slate-500">model {run.data.model_version} · engine {run.data.engine_version} · input {run.data.input_hash.slice(0, 12)} · checksum {run.data.checksum.slice(0, 12) || "—"} · {run.data.elapsed_s ? `${run.data.elapsed_s.toFixed(1)} s` : ""}</p>}
+        {backup && canRun && (
+          <p className="mt-2 text-xs text-amber-800">
+            Máy chủ dự phòng (chỉ đọc): mô phỏng tạm chạy trên dữ liệu đồng bộ gần nhất, tối đa 10 replication / 120 ngày đo / 15 phút,
+            mỗi lúc một mô phỏng. Kết quả không lưu vào lịch sử và mất sau 30 phút hoặc khi tải lại trang – tải Excel / PDF / JSON hoặc PNG/CSV ở tab Plot results để giữ lại.
+          </p>
+        )}
         <div className="mt-2"><ErrorBox error={err} /></div>
         {run.data?.status === "failed" && <Warnings items={((run.data.error as { issues?: [] })?.issues) || [{ code: "FAILED", message: JSON.stringify(run.data.error), severity: "error" }]} />}
       </Card>
 
-      {!res ? <Empty text="Chưa có kết quả mô phỏng. Gửi một lần chạy (cần quyền Planner/Analyst; chỉ chạy trên máy chủ chính)." /> : (
+      {!res ? <Empty text="Chưa có kết quả mô phỏng. Gửi một lần chạy (cần quyền Planner/Analyst)." /> : (
         <>
           {res.animation_available ? (
             <Card title="Hoạt ảnh thiết bị trên mặt bằng">

@@ -6,6 +6,7 @@ import { can, useAuth } from "../store/auth";
 import { allowed, PROJECT_ROLE_LABEL } from "../lib/rbac";
 import { Badge, ErrorBox, Loading } from "../components/ui";
 import { STATUS_LABEL } from "../lib/format";
+import { useAccess } from "../store/access";
 
 export interface ScenarioCtx {
   scenario: Scenario;
@@ -23,6 +24,7 @@ export function useScenario(): ScenarioCtx {
 export default function ScenarioShell() {
   const { scenarioId = "" } = useParams();
   const user = useAuth((s) => s.user);
+  const plan = useAccess().plan;   // V1.4: "demo" (hub paywall) hides the run buttons
   const sc = useQuery({ queryKey: ["scenario", scenarioId], queryFn: () => api<Scenario>("GET", `/api/v1/scenarios/${scenarioId}`) });
   const pid = sc.data?.project_id;
   const pj = useQuery({ queryKey: ["project", pid], enabled: !!pid, queryFn: () => api<Project>("GET", `/api/v1/projects/${pid}`) });
@@ -40,7 +42,7 @@ export default function ScenarioShell() {
       : scenario.status === "archived"
         ? "Phương án đã lưu trữ. Bấm “Clone” ở trang dự án để tạo phương án Nháp mới và sửa tiếp."
         : "Phương án đã duyệt / khoá. Bấm “Clone” ở trang dự án để tạo phương án Nháp mới và sửa.";
-  const canRun = allowed(project.my_role, "run", rb);
+  const canRun = allowed(project.my_role, "run", rb) && plan === "pro";
   const tab = ({ isActive }: { isActive: boolean }) =>
     `border-b-2 px-3 py-2 text-sm font-bold ${isActive ? "border-navy text-navy" : "border-transparent text-slate-600 hover:text-navy"}`;
   const ctx: ScenarioCtx = { scenario, project, editable, readOnlyReason, canRun, refetch: () => void sc.refetch() };
