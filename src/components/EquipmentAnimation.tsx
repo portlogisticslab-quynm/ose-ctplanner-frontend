@@ -74,7 +74,25 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
   }
 
   if (q.isLoading) return <div ref={box}><Loading text="Đang dựng lại mô phỏng cho cửa sổ thời gian…" /></div>;
-  if (q.error) return <div ref={box}><ErrorBox error={q.error} /></div>;
+  if (q.error) {
+    // V1.4.2: a run that this server does not have (e.g. a stored run while the backup answers) or a replay that took
+    // too long is not an application error: explain it in grey and offer a retry instead of a red error box.
+    const code = (q.error as { code?: string }).code;
+    const status = (q.error as { status?: number }).status;
+    const soft = code === "NOT_FOUND" ? "Máy chủ đang trả lời chưa có lần chạy này (thường do yêu cầu vừa bị chuyển sang máy chủ dự phòng, nơi chỉ có dữ liệu đồng bộ trước đó). Bấm Thử lại; nếu vẫn vậy, tải lại trang (F5)."
+      : code === "PRIMARY_REQUEST_FAILED" || code === "NETWORK" || status === 504 || status === 524
+        ? "Dựng lại hoạt ảnh mất quá lâu hoặc mạng chập chờn. Bấm Thử lại, hoặc chọn cửa sổ thời gian ngắn hơn (ví dụ 6–12 giờ)."
+        : null;
+    if (soft) {
+      return (
+        <div ref={box} className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          <p>{soft}</p>
+          <div className="mt-2"><Button variant="secondary" onClick={() => void q.refetch()}>Thử lại</Button></div>
+        </div>
+      );
+    }
+    return <div ref={box}><ErrorBox error={q.error} /></div>;
+  }
   if (!rep) return <div ref={box}><Empty text="Không có dữ liệu hoạt ảnh" /></div>;
 
   const L = rep.layout;

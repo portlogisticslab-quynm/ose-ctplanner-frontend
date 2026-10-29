@@ -59,6 +59,59 @@ export function notePreviewServer(r: unknown): void {
   if (p && p.preview && p.id && p.server === "render" && BASES.length > 1) PREVIEW_ON_RENDER.add(p.id);
 }
 
+// V1.4.2: one failed or slow request (e.g. a long equipment replay that Cloudflare cuts at 100 s, whose error page has
+// no CORS header and so looks like a network error) must not switch the whole app to the read-only backup. Before
+// failing over, ask the main server's /api/health: if it answers "ok" and writable, keep using it and report the
+// error of this one request instead. The answer is cached for a few seconds.
+const HEALTH_TIMEOUT_MS = 15_000;   // the path VN → Cloudflare → tunnel sometimes takes several seconds: no short timeout
+const HEALTH_CACHE_MS = 15_000;
+let healthAt = 0;
+let healthOk = false;
+
+export async function primaryHealthy(force = false): Promise<boolean> {
+  if (BASES.length < 2) return true;
+  if (!force && Date.now() - healthAt < HEALTH_CACHE_MS) return healthOk;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), HEALTH_TIMEOUT_MS);
+  try {
+    const r = await fetch(`${BASES[0]}/api/health?t=${Date.now()}`, { cache: "no-store", signal: ctl.signal });
+    const j = r.ok ? await r.json() : null;
+    healthOk = !!j && j.status === "ok" && j.read_only === false && (r.headers.get("X-Served-By") || "home") !== "render";
+  } catch {
+    healthOk = false;
+  } finally {
+    clearTimeout(timer);
+  }
+  healthAt = Date.now();
+  return healthOk;
+}
+
+/** V1.4.2: while the app shows backup mode, check the main server every 30 s and switch back as soon as it is healthy
+ *  (no reload needed). */
+const RECOVERY_PROBE_MS = 30_000;
+if (typeof window !== "undefined" && BASES.length > 1) {
+  window.setInterval(() => {
+    const st = useServerStatus.getState();
+    if (st.servedBy !== "render" && !st.readOnly) return;
+    void primaryHealthy(true).then((ok) => {
+      if (!ok) return;
+      preferred = 0;
+      useServerStatus.getState().setServedBy("home");
+    });
+  }, RECOVERY_PROBE_MS);
+}
+
+// V1.4.2: long requests go STRAIGHT to the main server (the VPS, VITE_API_DIRECT), not through the Worker: the Worker
+// "ose-failover" gives the main server only a few seconds before it answers from the read-only backup, so a slow
+// equipment replay, report, Excel/DXF import, status change (runs the validation), clone, capacity run… came back from the backup (NOT_FOUND for runs made today, read-only
+// banner, "Mô phỏng tạm"). If the direct call cannot reach the VPS, the normal path (Worker → backup) is used.
+const DIRECT = ((env.VITE_API_DIRECT as string | undefined) || "").trim().replace(/\/$/, "");
+const LONG_PATH = /\/(replay|report|reports|imports|demo-data|file-runs|compare|status|validate|clone|export(\.dxf|\.geojson)?)(\/|\?|$)|\/cad\/dxf\/|\/projects\/import$|\/runs\/(capacity|yard-plan)$/;
+
+export function isLongPath(path: string): boolean {
+  return LONG_PATH.test(path.split("?")[0]);
+}
+
 async function oseFetch(path: string, init: RequestInit): Promise<Response> {
   const pin = path.match(PREVIEW_PATH);
   if (pin && PREVIEW_ON_RENDER.has(pin[1])) {
@@ -66,6 +119,22 @@ async function oseFetch(path: string, init: RequestInit): Promise<Response> {
       return await fetch(BASES[BASES.length - 1] + path, { credentials: CREDENTIALS, ...init });
     } catch (e) {
       throw new ApiError(0, "NETWORK", "Không kết nối được máy chủ dự phòng", String(e));
+    }
+  }
+  if (DIRECT && isLongPath(path)) {
+    try {
+      const res = await fetch(DIRECT + path, { credentials: CREDENTIALS, ...init });
+      if (!FAILOVER_STATUS.has(res.status)) {
+        useServerStatus.getState().setServedBy("home");
+        return res;
+      }
+    } catch (e) {
+      // GET: VPS not reachable directly → fall through to the Worker / backup. A write may already have reached the
+      // VPS, so it is not sent a second time (the backup is read-only anyway).
+      const method = (init.method || "GET").toUpperCase();
+      if (method !== "GET" && method !== "HEAD") {
+        throw new ApiError(0, "NETWORK", "Không kết nối được máy chủ chính cho thao tác này – kiểm tra kết quả rồi thử lại", String(e));
+      }
     }
   }
   let lastErr: unknown = null;
@@ -77,6 +146,10 @@ async function oseFetch(path: string, init: RequestInit): Promise<Response> {
     try {
       const res = await fetch(BASES[i] + path, { credentials: CREDENTIALS, ...init });
       if (FAILOVER_STATUS.has(res.status) && k < BASES.length - 1) {
+        if (i === 0 && (await primaryHealthy(true))) {
+          useServerStatus.getState().setServedBy("home");
+          return res;   // main server is up: report this request's error, do not switch to the backup
+        }
         lastErr = new Error(`HTTP ${res.status}`);
         continue;
       }
@@ -86,6 +159,12 @@ async function oseFetch(path: string, init: RequestInit): Promise<Response> {
       useServerStatus.getState().setServedBy(served);
       return res;
     } catch (e) {
+      if (i === 0 && k < BASES.length - 1 && (await primaryHealthy(true))) {
+        useServerStatus.getState().setServedBy("home");
+        throw new ApiError(0, "PRIMARY_REQUEST_FAILED",
+          "Máy chủ chính đang chạy nhưng không trả lời yêu cầu này (quá thời gian hoặc mạng chập chờn) – thử lại; với hoạt ảnh, chọn cửa sổ ngắn hơn",
+          String(e));
+      }
       lastErr = e; // network error → try the next base
     }
   }

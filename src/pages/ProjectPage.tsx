@@ -83,19 +83,19 @@ export default function ProjectPage() {
               dateTime(s.updated_at),
               <div className="flex flex-wrap gap-1">
                 <Link className="rounded px-2 py-1 text-sm text-navy hover:bg-navy-light" to={`/scenarios/${s.id}/capacity`}>Kết quả</Link>
-                {writer && <Button variant="ghost" onClick={() => {
+                {writer && <Button variant="ghost" disabled={act.isPending} onClick={() => {
                   const n = window.prompt("Tên phương án mới", `${s.name} (bản sao)`);
                   if (n) act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/clone`, { name: n }));
                 }}>Clone</Button>}
-                {writer && s.status === "draft" && <Button variant="ghost" onClick={() => act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/status`, { status: "validated" }))}>Kiểm tra → Validated</Button>}
-                {writer && s.status === "validated" && <Button variant="ghost" onClick={() => act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/status`, { status: "draft" }))}>Về nháp</Button>}
-                {approver && s.status === "validated" && <Button variant="ghost" onClick={() => {
+                {writer && s.status === "draft" && <Button variant="ghost" disabled={act.isPending} onClick={() => act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/status`, { status: "validated" }))}>Kiểm tra → Validated</Button>}
+                {writer && s.status === "validated" && <Button variant="ghost" disabled={act.isPending} onClick={() => act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/status`, { status: "draft" }))}>Về nháp</Button>}
+                {approver && s.status === "validated" && <Button variant="ghost" disabled={act.isPending} onClick={() => {
                   const c = window.prompt("Ý kiến duyệt", "") ?? "";
                   act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/status`, { status: "approved", comment: c }));
                 }}>Duyệt</Button>}
-                {reviewer && s.status !== "approved" && <Button variant="ghost" onClick={() => act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/lock?locked=${!s.locked}`))}>{s.locked ? "Mở khoá" : "Khoá"}</Button>}
-                {writer && p.baseline_scenario_id !== s.id && <Button variant="ghost" onClick={() => act.mutate(() => api("PATCH", `/api/v1/projects/${p.id}`, { baseline_scenario_id: s.id }))}>Đặt baseline</Button>}
-                {writer && p.baseline_scenario_id !== s.id && s.status === "draft" && !s.locked && <Button variant="ghost" onClick={() => {
+                {reviewer && s.status !== "approved" && <Button variant="ghost" disabled={act.isPending} onClick={() => act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/lock?locked=${!s.locked}`))}>{s.locked ? "Mở khoá" : "Khoá"}</Button>}
+                {writer && p.baseline_scenario_id !== s.id && <Button variant="ghost" disabled={act.isPending} onClick={() => act.mutate(() => api("PATCH", `/api/v1/projects/${p.id}`, { baseline_scenario_id: s.id }))}>Đặt baseline</Button>}
+                {writer && p.baseline_scenario_id !== s.id && s.status === "draft" && !s.locked && <Button variant="ghost" disabled={act.isPending} onClick={() => {
                   if (window.confirm(`Xoá phương án ${s.name} v${s.version_no}?`)) act.mutate(() => api("DELETE", `/api/v1/scenarios/${s.id}`));
                 }}>Xoá</Button>}
               </div>,
@@ -111,7 +111,7 @@ export default function ProjectPage() {
               </select>
             </Field>
             <div className="flex items-end">
-              <Button disabled={!name} onClick={() => act.mutate(() => api("POST", `/api/v1/projects/${p.id}/scenarios`, { name, parent_id: parent || null }).then(() => setName("")))}>Tạo phương án</Button>
+              <Button disabled={!name || act.isPending} onClick={() => act.mutate(() => api("POST", `/api/v1/projects/${p.id}/scenarios`, { name, parent_id: parent || null }).then(() => setName("")))}>Tạo phương án</Button>
             </div>
           </div>
         )}
