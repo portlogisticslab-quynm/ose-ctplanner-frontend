@@ -19,6 +19,7 @@ export default function ProjectPage() {
   const scenarios = useQuery({ queryKey: ["scenarios", projectId], queryFn: () => api<Scenario[]>("GET", `/api/v1/projects/${projectId}/scenarios`) });
   const [name, setName] = useState("");
   const [parent, setParent] = useState("");
+  const [showArchived, setShowArchived] = useState(false);   // V1.4.3: archived scenarios hidden by default
   const [err, setErr] = useState<unknown>(null);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["scenarios", projectId] });
@@ -37,6 +38,9 @@ export default function ProjectPage() {
   const writer = allowed(p.my_role, "write", rb);
   const reviewer = allowed(p.my_role, "review", rb);
   const manager = allowed(p.my_role, "manage", rb);
+  const all = scenarios.data ?? [];
+  const nArchived = all.filter((s) => s.status === "archived").length;
+  const visible = showArchived ? all : all.filter((s) => s.status !== "archived");
   const approver = (p.my_role === "reviewer" || can(user, "admin")) && !(p.is_sample && !can(user, "admin"));  // four-eyes
 
   async function exportJson() {
@@ -71,9 +75,15 @@ export default function ProjectPage() {
 
       <Card title="Phương án">
         <ErrorBox error={err} />
+        {nArchived > 0 && (
+          <label className="mb-2 flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            Hiện cả phương án lưu trữ ({nArchived})
+          </label>
+        )}
         {scenarios.data && (
           <Table head={["Phương án", "Trạng thái", "Revision layout", "Cập nhật", "Thao tác"]}
-            rows={scenarios.data.map((s) => [
+            rows={visible.map((s) => [
               <span>
                 <Link className="font-medium text-navy underline" to={`/scenarios/${s.id}/layout`}>{s.name} v{s.version_no}</Link>
                 {p.baseline_scenario_id === s.id && <> <Badge tone="blue">baseline</Badge></>}
@@ -95,8 +105,15 @@ export default function ProjectPage() {
                 }}>Duyệt</Button>}
                 {reviewer && s.status !== "approved" && <Button variant="ghost" disabled={act.isPending} onClick={() => act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/lock?locked=${!s.locked}`))}>{s.locked ? "Mở khoá" : "Khoá"}</Button>}
                 {writer && p.baseline_scenario_id !== s.id && <Button variant="ghost" disabled={act.isPending} onClick={() => act.mutate(() => api("PATCH", `/api/v1/projects/${p.id}`, { baseline_scenario_id: s.id }))}>Đặt baseline</Button>}
-                {writer && p.baseline_scenario_id !== s.id && s.status === "draft" && !s.locked && <Button variant="ghost" disabled={act.isPending} onClick={() => {
-                  if (window.confirm(`Xoá phương án ${s.name} v${s.version_no}?`)) act.mutate(() => api("DELETE", `/api/v1/scenarios/${s.id}`));
+                {writer && p.baseline_scenario_id !== s.id && (s.status === "draft" || s.status === "validated") && <Button variant="ghost" disabled={act.isPending} onClick={() => {
+                  if (window.confirm(`Lưu trữ phương án ${s.name} v${s.version_no}? (ẩn khỏi danh sách, khoá chỉnh sửa, giữ nguyên kết quả; có thể bỏ lưu trữ sau)`))
+                    act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/status`, { status: "archived" }));
+                }}>Lưu trữ</Button>}
+                {writer && s.status === "archived" && <Button variant="ghost" disabled={act.isPending}
+                  onClick={() => act.mutate(() => api("POST", `/api/v1/scenarios/${s.id}/status`, { status: "draft" }))}>Bỏ lưu trữ</Button>}
+                {writer && p.baseline_scenario_id !== s.id && (s.status === "draft" || s.status === "archived") && !s.locked && <Button variant="ghost" disabled={act.isPending} onClick={() => {
+                  if (window.confirm(`Xoá vĩnh viễn phương án ${s.name} v${s.version_no}?\n\nMọi kết quả chạy (công suất, kế hoạch bãi, mô phỏng) của phương án này cũng bị xoá và không khôi phục được.`))
+                    act.mutate(() => api("DELETE", `/api/v1/scenarios/${s.id}?with_runs=true`));
                 }}>Xoá</Button>}
               </div>,
             ])} />
