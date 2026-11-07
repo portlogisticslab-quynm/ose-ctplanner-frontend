@@ -10,6 +10,8 @@ import { Badge, Button, Card, Chart, Empty, ErrorBox, Field, inputCls, Table } f
 import { dateTime, fmt, pct } from "../lib/format";
 import { isPreviewId, previewReport, saveRunJson, useBackupMode, usePreview, usePreviews } from "../store/previews";
 import { bounds, centroid, ringOf, type Pt } from "../lib/geometry";
+
+interface VesselClassRes { name: string; berths?: string[]; calls: number; call: number; disc: number; k: number; wait_h: number; turnaround_h: number }
 import { useScenario } from "./ScenarioShell";
 
 interface Frame {
@@ -316,6 +318,13 @@ export default function SimulationPage() {
               rows={(res.kpis as SimKpi[]).map((k) => [defMap.get(k.code)?.name_vi || k.code, fmt(k.value, 3),
                 k.ci_low !== null && k.ci_high !== null ? `${fmt(k.ci_low, 3)} – ${fmt(k.ci_high, 3)}` : "—", fmt(k.std, 3), k.unit])} />
           </Card>
+          {Array.isArray(res.vessel_classes) && res.vessel_classes.length > 0 && (
+            <Card title="Theo loại tàu / nhóm bến (V1.6)">
+              <Table head={["Loại tàu", "Bến được cập", "Lượt trong kỳ đo", "Box/lượt", "Tỷ lệ dỡ", "STS/tàu", "Chờ bến TB (giờ)", "Ở cảng TB (giờ)"]}
+                rows={(res.vessel_classes as VesselClassRes[]).map((v) => [v.name, v.berths?.length ? v.berths.join(", ") : "mọi bến",
+                  fmt(v.calls, 1), fmt(v.call), pct(v.disc), v.k, fmt(v.wait_h, 2), fmt(v.turnaround_h, 2)])} />
+            </Card>
+          )}
           <div className="grid gap-3 lg:grid-cols-2">
             <Card title="Cảnh báo & ghi chú">
               <Warnings items={res.warnings} />
