@@ -38,7 +38,7 @@ export default function FileRunPage() {
   const [key, setKey] = useState("");
   const [runType, setRunType] = useState<RunType>("capacity");
   const [applyPeak, setApplyPeak] = useState(true);
-  const [sim, setSim] = useState({ horizon_days: 30, warmup_days: 5, replications: 3, seed: 12345, arrival: "poisson", service: "stochastic", travel_mode: "geometry" });
+  const [sim, setSim] = useState({ horizon_days: 30, warmup_days: 5, replications: 3, seed: 12345, arrival: "poisson", service: "stochastic", travel_mode: "geometry", road_network: "grid" });
   const [job, setJob] = useState<Run | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<unknown>(null);
@@ -175,6 +175,12 @@ export default function FileRunPage() {
                 <Field label="Quãng đường xe">
                   <select className={inputCls} value={sim.travel_mode} onChange={(e) => setSim({ ...sim, travel_mode: e.target.value })}>
                     <option value="geometry">Theo mặt bằng thực</option><option value="average">Trung bình toàn bãi</option>
+                  </select>
+                </Field>
+                <Field label="Mạng đường xe chạy">
+                  <select className={inputCls} value={sim.road_network} disabled={sim.travel_mode !== "geometry"}
+                    onChange={(e) => setSim({ ...sim, road_network: e.target.value })}>
+                    <option value="grid">Lưới làn tự sinh theo block</option><option value="drawn">Theo đường vẽ trên mặt bằng</option>
                   </select>
                 </Field>
               </div>

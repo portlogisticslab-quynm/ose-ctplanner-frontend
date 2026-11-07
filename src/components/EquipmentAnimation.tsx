@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { Badge, Button, Empty, ErrorBox, inputCls, Loading } from "./ui";
 import { blockOccupancy, frameIndex, heat } from "../lib/occupancy";
-import { buildTracks, clock, inPoly, KIND_LABEL, STATE_LABEL, stateAt, type Replay, type UnitState } from "../lib/replay";
+import { buildTracks, clock, inPoly, KIND_LABEL, STATE_LABEL, stateAt, type Replay, type ReplayLayout, type UnitState } from "../lib/replay";
 
 const COLOR = {
   vessel: "#1E3A8A", sts: "#EA580C", loaded: "#DC2626", empty: "#16A34A", idleVeh: "#94A3B8",
@@ -104,8 +104,21 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
   addPt(L.gate);
   L.road.forEach((r) => { addPt([r[0], r[1]]); addPt([r[2], r[3]]); });
   const [nx, ny] = L.n;
+  // V1.5: every berth has its own direction and normal (L-shaped quay, jetty); older replays fall back to the quay
+  const bn = (b: ReplayLayout["berths"][number]) => b.n ?? L.n;
+  const bang = (b: ReplayLayout["berths"][number]) => (Math.atan2(b.b[1] - b.a[1], b.b[0] - b.a[0]) * 180) / Math.PI;
+  const nearestBerth = (x: number, y: number) => {
+    let best = L.berths[0], bd = Infinity;
+    for (const b of L.berths) {
+      const dx = b.b[0] - b.a[0], dy = b.b[1] - b.a[1], l2 = dx * dx + dy * dy || 1;
+      const k = Math.max(0, Math.min(1, ((x - b.a[0]) * dx + (y - b.a[1]) * dy) / l2));
+      const d = Math.hypot(b.a[0] + k * dx - x, b.a[1] + k * dy - y);
+      if (d < bd) { bd = d; best = b; }
+    }
+    return best;
+  };
   // vessels lie on the water side: extend the frame by 70 m seaward
-  L.berths.forEach((b) => { addPt([b.a[0] - nx * 70, b.a[1] - ny * 70]); addPt([b.b[0] - nx * 70, b.b[1] - ny * 70]); });
+  L.berths.forEach((b) => { const [mx, my] = bn(b); addPt([b.a[0] - mx * 70, b.a[1] - my * 70]); addPt([b.b[0] - mx * 70, b.b[1] - my * 70]); });
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const h = Math.max(380, Math.min(640, w * 0.62));
   const zoom = Math.min((w - 30) / Math.max(1, maxX - minX), (h - 30) / Math.max(1, maxY - minY));
@@ -132,8 +145,9 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
         const b = L.berths[s.seg?.b ?? 0];
         const blen = b ? Math.hypot(b.b[0] - b.a[0], b.b[1] - b.a[1]) : 250;
         const vl = Math.max(80, blen * 0.85), vw = 32;
+        const [mx, my] = b ? bn(b) : [nx, ny];
         return (
-          <Group key={s.uid} x={s.x - nx * (vw / 2 + 6)} y={s.y - ny * (vw / 2 + 6)} rotation={angle} {...on}>
+          <Group key={s.uid} x={s.x - mx * (vw / 2 + 6)} y={s.y - my * (vw / 2 + 6)} rotation={b ? bang(b) : angle} {...on}>
             <Rect x={-vl / 2} y={-vw / 2} width={vl} height={vw} cornerRadius={vw / 2} fill={COLOR.vessel} opacity={0.9} {...ring} />
             <Text x={-vl / 2} y={-6 * px} width={vl} align="center" fontSize={11 * px} fill="#fff" text={`${s.uid} · ${s.seg?.n ?? ""} move`} />
           </Group>
@@ -141,7 +155,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
       }
       case "sts":
         return (
-          <Group key={s.uid} x={s.x} y={s.y} rotation={angle} {...on}>
+          <Group key={s.uid} x={s.x} y={s.y} rotation={L.berths.length ? bang(nearestBerth(s.x, s.y)) : angle} {...on}>
             <Rect x={-6} y={-45} width={12} height={60} fill={COLOR.sts} opacity={s.state === "idle" ? 0.45 : 1} {...ring} />
             {zoom > 0.8 && <Text x={-20} y={18} fontSize={9 * px} fill={COLOR.sts} text={s.uid} />}
           </Group>
@@ -161,7 +175,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
         // RTG gantry spanning the block: two legs across the stack, moving along the block axis
         const blk = L.blocks.find((b) => inPoly(s.x, s.y, b.poly));
         const span = (blk?.width ?? 20) + 6;
-        const rot = blk ? (blk.along_u === false ? angle + 90 : angle) : (s.ang ?? angle) + 90;
+        const rot = blk ? (blk.ang ?? (blk.along_u === false ? angle + 90 : angle)) : (s.ang ?? angle) + 90;
         const work = s.state === "work";
         return (
           <Group key={s.uid} x={s.x} y={s.y} rotation={rot} {...on}>
@@ -210,7 +224,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
             {L.berths.map((b) => (
               <Fragment key={b.code}>
                 <Line points={[...b.a, ...b.b]} stroke="#1E3A8A" strokeWidth={4 * px} />
-                <Text x={b.a[0] - nx * 60} y={b.a[1] - ny * 60} fontSize={11 * px} fill="#1E3A8A" text={b.code} />
+                <Text x={b.a[0] - bn(b)[0] * 60} y={b.a[1] - bn(b)[1] * 60} fontSize={11 * px} fill="#1E3A8A" text={b.code} />
               </Fragment>
             ))}
             {L.blocks.map((b) => (
@@ -230,7 +244,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
             {vis.filter((s) => s.kind === "veh").map(shape)}
             {vis.filter((s) => s.kind === "sts").map(shape)}
             {show.vessel && waiting.length > 0 && L.berths[0] && (
-              <Text x={L.berths[0].a[0] - nx * 85 + 40 * px} y={L.berths[0].a[1] - ny * 85} fontSize={12 * px} fill="#B91C1C"
+              <Text x={L.berths[0].a[0] - bn(L.berths[0])[0] * 85 + 40 * px} y={L.berths[0].a[1] - bn(L.berths[0])[1] * 85} fontSize={12 * px} fill="#B91C1C"
                 text={`${waiting.length} tàu chờ bến: ${waiting.map((s) => s.uid).join(", ")}`} />
             )}
           </Layer>

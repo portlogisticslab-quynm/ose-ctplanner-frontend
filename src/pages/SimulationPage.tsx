@@ -136,7 +136,7 @@ function Animation({ layout, frames, berths, codes }: { layout: Layout; frames: 
 export default function SimulationPage() {
   const { scenario, canRun } = useScenario();
   const qc = useQueryClient();
-  const [form, setForm] = useState({ horizon_days: 30, warmup_days: 5, replications: 5, seed: 12345, arrival: "poisson", service: "stochastic", travel_mode: "geometry" });
+  const [form, setForm] = useState({ horizon_days: 30, warmup_days: 5, replications: 5, seed: 12345, arrival: "poisson", service: "stochastic", travel_mode: "geometry", road_network: "grid" });
   const [selected, setSelected] = useState("");
   const [err, setErr] = useState<unknown>(null);
   const [seriesKey, setSeriesKey] = useState<keyof Frame>("inventory_teu");
@@ -240,6 +240,12 @@ export default function SimulationPage() {
             <Field label="Quãng đường xe" hint="Thực: theo vị trí bến – block trên mặt bằng (có hoạt ảnh thiết bị)">
               <select className={inputCls} value={form.travel_mode} onChange={(e) => setForm({ ...form, travel_mode: e.target.value })}>
                 <option value="geometry">Theo mặt bằng thực (B)</option><option value="average">Trung bình toàn bãi (A, như V0.2)</option>
+              </select>
+            </Field>
+            <Field label="Mạng đường xe chạy" hint="Theo đường vẽ: xe chỉ chạy trên tim đường của mặt bằng (cầu dẫn, đường bãi) và làn dọc block">
+              <select className={inputCls} value={form.road_network} disabled={form.travel_mode !== "geometry"}
+                onChange={(e) => setForm({ ...form, road_network: e.target.value })}>
+                <option value="grid">Lưới làn tự sinh theo block</option><option value="drawn">Theo đường vẽ trên mặt bằng</option>
               </select>
             </Field>
           </div>
