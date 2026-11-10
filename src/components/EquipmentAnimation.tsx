@@ -8,6 +8,7 @@ import { api } from "../api/client";
 import { Badge, Button, Empty, ErrorBox, inputCls, Loading } from "./ui";
 import { blockOccupancy, frameIndex, heat } from "../lib/occupancy";
 import { buildTracks, clock, inPoly, KIND_LABEL, STATE_LABEL, stateAt, type Replay, type ReplayLayout, type UnitState } from "../lib/replay";
+import { BERTH_RULE_LABEL, classColor } from "../lib/vessels";
 
 const COLOR = {
   vessel: "#1E3A8A", sts: "#EA580C", loaded: "#DC2626", empty: "#16A34A", idleVeh: "#94A3B8",
@@ -15,8 +16,10 @@ const COLOR = {
 };
 const SPEEDS = [60, 300, 600, 1800, 3600];   // simulated seconds per real second
 
-export default function EquipmentAnimation({ runId, horizonH, frames = [], blockCodes = [] }: {
+export default function EquipmentAnimation({ runId, horizonH, frames = [], blockCodes = [], jump = null, onSync }: {
   runId: string; horizonH: number; frames?: { t_h: number; bo?: number[]; yard_occupancy: number | null }[]; blockCodes?: string[];
+  jump?: { h: number; n: number } | null;   // V1.6.4: open the window around hour h (n changes on every request)
+  onSync?: (h: number) => void;             // V1.6.4: hour shown here when paused / dragged / loaded
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(900);
@@ -48,7 +51,34 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
   });
   const rep = q.data;
   const tracks = useMemo(() => (rep ? buildTracks(rep) : []), [rep]);
-  useEffect(() => { if (rep) { setT(rep.window_min[0]); setPlaying(false); setHasData(true); } }, [rep]);
+  const pendingH = useRef<number | null>(null);
+  useEffect(() => {
+    if (!rep) return;
+    const h = pendingH.current;
+    pendingH.current = null;
+    setT(h !== null ? Math.min(rep.window_min[1], Math.max(rep.window_min[0], rep.warmup_min + h * 60)) : rep.window_min[0]);
+    setPlaying(false);
+    setHasData(true);
+  }, [rep]);
+  // V1.6.4: jump requested by the yard overview: window starting one hour before, at most the chosen length
+  useEffect(() => {
+    if (!jump) return;
+    const s = Math.max(0, Math.min(Math.floor(jump.h) - 1, Math.max(0, horizonH - 1)));
+    const w: [number, number] = [s, Math.min(horizonH, s + len)];
+    setStart(s);
+    box.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (rep && rep.window_h[0] === w[0] && rep.window_h[1] === w[1]) {
+      setT(Math.min(rep.window_min[1], rep.warmup_min + jump.h * 60));
+      setPlaying(false);
+    } else {
+      pendingH.current = jump.h;
+      setWin(w);
+    }
+  }, [jump]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // V1.6.4: tell the overview which hour is shown (not while playing, to keep the page light)
+  useEffect(() => {
+    if (!playing && rep && onSync) onSync(Math.round(((t - rep.warmup_min) / 60) * 100) / 100);
+  }, [playing, t, rep]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // playback loop
   const last = useRef<number | null>(null);
@@ -133,6 +163,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
   const [ux, uy] = L.u;
   const angle = (Math.atan2(uy, ux) * 180) / Math.PI;
   const waiting = states.filter((s) => s.kind === "vessel" && s.state === "wait");
+  const classes = rep.vessel_class_names ?? [];
   const occ = blockOccupancy(frames[frameIndex(frames, t, rep.warmup_min)], blockCodes);
   for (const s of states) if (s.ang !== null) lastAng.current![s.uid] = s.ang;
 
@@ -149,7 +180,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
         const [mx, my] = b ? bn(b) : [nx, ny];
         return (
           <Group key={s.uid} x={s.x - mx * (vw / 2 + 6)} y={s.y - my * (vw / 2 + 6)} rotation={b ? bang(b) : angle} {...on}>
-            <Rect x={-vl / 2} y={-vw / 2} width={vl} height={vw} cornerRadius={vw / 2} fill={COLOR.vessel} opacity={0.9} {...ring} />
+            <Rect x={-vl / 2} y={-vw / 2} width={vl} height={vw} cornerRadius={vw / 2} fill={classes.length ? classColor(s.seg?.c) : COLOR.vessel} opacity={0.9} {...ring} />
             <Text x={-vl / 2} y={-6 * px} width={vl} align="center" fontSize={11 * px} fill="#fff" text={`${s.uid} · ${s.seg?.n ?? ""} move`} />
           </Group>
         );
@@ -210,7 +241,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
           </select>
         </label>
         <Button variant="secondary" onClick={load}>Tải cửa sổ</Button>
-        <span className="text-xs text-slate-500">đang xem giờ {rep.window_h[0]}–{rep.window_h[1]} sau warm-up (replication 1, seed {rep.seed})</span>
+        <span className="text-xs text-slate-500">đang xem giờ {rep.window_h[0]}–{rep.window_h[1]} sau warm-up (replication 1, seed {rep.seed}{rep.berth_rule ? `; chọn bến: ${BERTH_RULE_LABEL[rep.berth_rule] ?? rep.berth_rule}` : ""})</span>
         {rep.verified ? <Badge tone="green">khớp lần chạy gốc</Badge> : <Badge tone="amber">chưa đối chiếu</Badge>}
         {rep.truncated && <Badge tone="amber">quá nhiều chuyển động – rút ngắn cửa sổ</Badge>}
       </div>
@@ -259,7 +290,8 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
         <div className="absolute right-2 top-2 rounded bg-white/90 px-2 py-1 text-xs shadow">
           <div className="font-semibold">{clock(t, rep.warmup_min)}</div>
           <div><span style={{ color: COLOR.loaded }}>●</span> xe có hàng <span style={{ color: COLOR.empty }}>●</span> xe rỗng <span style={{ color: COLOR.idleVeh }}>●</span> xe đứng</div>
-          <div><span style={{ color: COLOR.sts }}>▮</span> STS <span style={{ color: COLOR.yc }}>■</span> cẩu bãi <span style={{ color: COLOR.truck }}>■</span> xe tải <span style={{ color: COLOR.vessel }}>▬</span> tàu</div>
+          <div><span style={{ color: COLOR.sts }}>▮</span> STS <span style={{ color: COLOR.yc }}>■</span> cẩu bãi <span style={{ color: COLOR.truck }}>■</span> xe tải{!classes.length && <> <span style={{ color: COLOR.vessel }}>▬</span> tàu</>}</div>
+          {classes.map((n, k) => <div key={n}><span style={{ color: classColor(k) }}>▬</span> {n}</div>)}
         </div>
       </div>
 

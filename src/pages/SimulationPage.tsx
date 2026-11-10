@@ -10,6 +10,7 @@ import { Badge, Button, Card, Chart, Empty, ErrorBox, Field, inputCls, Table } f
 import { dateTime, fmt, pct } from "../lib/format";
 import { isPreviewId, previewReport, saveRunJson, useBackupMode, usePreview, usePreviews } from "../store/previews";
 import { bounds, centroid, ringOf, type Pt } from "../lib/geometry";
+import { BERTH_RULE_LABEL, classColor } from "../lib/vessels";
 
 interface VesselClassRes { name: string; berths?: string[]; calls: number; call: number; disc: number; k: number; wait_h: number; turnaround_h: number }
 import { useScenario } from "./ScenarioShell";
@@ -21,9 +22,7 @@ interface Frame {
   bv?: number[];   // V1.6.3: vessel class index at each berth (order: result.berth_codes; -1 = free)
 }
 
-// V1.6.3: one colour per vessel class in the overview
-const CLASS_COLORS = ["#1E3A8A", "#7C3AED", "#0F766E", "#C2410C", "#BE123C", "#4D7C0F"];
-const classColor = (i: number) => CLASS_COLORS[i % CLASS_COLORS.length];
+
 interface SimKpi { code: string; value: number; unit: string; std: number | null; ci_low: number | null; ci_high: number | null; n: number }
 
 const RES_LABEL: Record<string, string> = { berth: "Bến", sts: "STS", vehicle: "Xe vận chuyển ngang", yard_crane: "Cẩu bãi", gate_in: "Cổng vào", gate_out: "Cổng ra" };
@@ -46,8 +45,9 @@ export function HeatLegend({ perBlock }: { perBlock: boolean }) {
   );
 }
 
-function Animation({ layout, frames, berths, codes, berthCodes = [], classNames = [] }: {
-  layout: Layout; frames: Frame[]; berths: number; codes: string[]; berthCodes?: string[]; classNames?: string[] }) {
+function Animation({ layout, frames, berths, codes, berthCodes = [], classNames = [], syncH = null, onShow }: {
+  layout: Layout; frames: Frame[]; berths: number; codes: string[]; berthCodes?: string[]; classNames?: string[];
+  syncH?: number | null; onShow?: (h: number) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(760);
   const [i, setI] = useState(0);
@@ -59,6 +59,14 @@ function Animation({ layout, frames, berths, codes, berthCodes = [], classNames 
     const id = window.setInterval(() => setI((k) => (k + 1 >= frames.length ? 0 : k + 1)), 1000 / speed);
     return () => window.clearInterval(id);
   }, [playing, speed, frames.length]);
+  // V1.6.4: follow the hour shown by the equipment animation (when it is paused, dragged or a window is loaded)
+  useEffect(() => {
+    if (syncH === null || syncH === undefined || !frames.length) return;
+    let k = 0, bd = Infinity;
+    frames.forEach((fr, j) => { const d = Math.abs(fr.t_h - syncH); if (d < bd) { bd = d; k = j; } });
+    setI(k);
+    setPlaying(false);
+  }, [syncH, frames]);
   const b = bounds(layout.objects);
   if (!b || !frames.length) return <Empty text="Không có dữ liệu hoạt ảnh" />;
   const h = 420;
@@ -133,6 +141,7 @@ function Animation({ layout, frames, berths, codes, berthCodes = [], classNames 
         <Button variant="secondary" onClick={() => setPlaying(!playing)}>{playing ? "⏸ Dừng" : "▶ Chạy"}</Button>
         <input className="w-64" type="range" min={0} max={frames.length - 1} value={i} onChange={(e) => setI(Number(e.target.value))} />
         <span>giờ {fmt(f.t_h, 1)} (ngày {Math.floor(f.t_h / 24) + 1})</span>
+        {onShow && <Button variant="secondary" onClick={() => onShow(f.t_h)}>Xem giờ này trên hoạt ảnh thiết bị</Button>}
         <label className="flex items-center gap-1">tốc độ
           <select className={inputCls} value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
             {[1, 4, 12, 48].map((s) => <option key={s} value={s}>{s} khung/s</option>)}
@@ -157,6 +166,7 @@ function Animation({ layout, frames, berths, codes, berthCodes = [], classNames 
           ))}
         </div>
       )}
+      {onShow && <p className="text-xs text-slate-500">Đồng bộ với hoạt ảnh thiết bị: dừng hoặc kéo thanh thời gian ở hoạt ảnh thiết bị thì khung này nhảy tới cùng giờ; nút trên mở hoạt ảnh thiết bị tại giờ đang xem ở đây.</p>}
       {!exact && <p className="text-xs text-amber-700">Lần chạy này chỉ ghi số bến bận: chữ TÀU được tô lần lượt từ bến đầu tiên, không phải vị trí thật. Chạy lại mô phỏng để xem đúng bến và loại tàu.</p>}
       <HeatLegend perBlock={!!f.bo} />
     </div>
@@ -166,8 +176,12 @@ function Animation({ layout, frames, berths, codes, berthCodes = [], classNames 
 export default function SimulationPage() {
   const { scenario, canRun } = useScenario();
   const qc = useQueryClient();
-  const [form, setForm] = useState({ horizon_days: 30, warmup_days: 5, replications: 5, seed: 12345, arrival: "poisson", service: "stochastic", travel_mode: "geometry", road_network: "grid" });
+  const [form, setForm] = useState({ horizon_days: 30, warmup_days: 5, replications: 5, seed: 12345, arrival: "poisson", service: "stochastic", travel_mode: "geometry", road_network: "grid", berth_rule: "order" });
   const [selected, setSelected] = useState("");
+  // V1.6.4: the two animations show the same hour
+  const [jump, setJump] = useState<{ h: number; n: number } | null>(null);
+  const [syncH, setSyncH] = useState<number | null>(null);
+  useEffect(() => { setJump(null); setSyncH(null); }, [selected]);
   const [err, setErr] = useState<unknown>(null);
   const [seriesKey, setSeriesKey] = useState<keyof Frame>("inventory_teu");
   const backup = useBackupMode();
@@ -278,6 +292,12 @@ export default function SimulationPage() {
                 <option value="grid">Lưới làn tự sinh theo block</option><option value="drawn">Theo đường vẽ trên mặt bằng</option>
               </select>
             </Field>
+            <Field label="Chọn bến cho tàu" hint="Khi có nhiều bến trống được phép: theo thứ tự dọc mép bến (như trước), bến gần bãi nhất (quãng đường trung bình tới các block), hoặc luân phiên (bến rảnh lâu nhất)">
+              <select className={inputCls} value={form.berth_rule} disabled={form.travel_mode !== "geometry"}
+                onChange={(e) => setForm({ ...form, berth_rule: e.target.value })}>
+                {Object.entries(BERTH_RULE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </Field>
           </div>
         )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -319,7 +339,7 @@ export default function SimulationPage() {
           {res.animation_available ? (
             <Card title="Hoạt ảnh thiết bị trên mặt bằng">
               <EquipmentAnimation key={selected} runId={selected} horizonH={Number(res.options?.horizon_days || 1) * 24}
-                frames={frames} blockCodes={(res.block_codes as string[]) || []} />
+                frames={frames} blockCodes={(res.block_codes as string[]) || []} jump={jump} onSync={setSyncH} />
               <div className="mt-2"><HeatLegend perBlock={!!frames[0]?.bo} /></div>
             </Card>
           ) : (
@@ -330,7 +350,9 @@ export default function SimulationPage() {
           <div className="grid gap-3 lg:grid-cols-2">
             <Card title="Tổng quan bãi theo thời gian">{layout.data ? <Animation layout={layout.data} frames={frames} berths={Number(res.params?.berths || 1)} codes={(res.block_codes as string[]) || []}
               berthCodes={(res.berth_codes as string[]) || []}
-              classNames={Array.isArray(res.vessel_classes) ? (res.vessel_classes as VesselClassRes[]).map((v) => v.name) : []} /> : <Empty text="Đang tải layout…" />}</Card>
+              classNames={Array.isArray(res.vessel_class_names) ? (res.vessel_class_names as string[])
+                : Array.isArray(res.vessel_classes) ? (res.vessel_classes as VesselClassRes[]).map((v) => v.name) : []}
+              syncH={syncH} onShow={res.animation_available ? (h: number) => setJump({ h, n: Date.now() }) : undefined} /> : <Empty text="Đang tải layout…" />}</Card>
             <div className="space-y-3">
               <Card title={<span>Hệ số sử dụng – nút thắt: <Badge tone="red">{RES_LABEL[res.bottleneck] || res.bottleneck}</Badge></span>}>
                 <Chart option={utilChart} height={Math.max(180, Object.keys(util).length * 34)} />

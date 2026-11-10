@@ -4,6 +4,7 @@
 export interface Segment {
   u: string; k: "vessel" | "sts" | "veh" | "yc" | "truck"; t0: number; t1: number; s: string; p: number[];
   v?: number; b?: number; n?: number; open?: boolean;
+  c?: number;   // V1.6.4: vessel class index (colour)
 }
 export interface ReplayUnit { u: string; k: string; p: number[] }
 export interface ReplayLayout {
@@ -16,6 +17,7 @@ export interface ReplayLayout {
 export interface Replay {
   run_id: string; verified: boolean; seed: number; warmup_min: number; window_h: [number, number]; window_min: [number, number];
   layout: ReplayLayout; units: ReplayUnit[]; segments: Segment[]; truncated: boolean; ahead: Record<string, number>; notes: string[];
+  vessel_class_names?: string[]; berth_rule?: string;   // V1.6.4
 }
 
 export interface Track { uid: string; kind: string; start: [number, number] | null; segs: Segment[] }

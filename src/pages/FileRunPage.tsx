@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import type { Run } from "../api/types";
 import EquipmentAnimation from "../components/EquipmentAnimation";
+import { BERTH_RULE_LABEL } from "../lib/vessels";
 import PlotCard, { slug } from "../components/PlotCard";
 import { Warnings } from "../components/RunPanel";
 import { Badge, Button, Card, Empty, ErrorBox, Field, inputCls, Table } from "../components/ui";
@@ -38,7 +39,7 @@ export default function FileRunPage() {
   const [key, setKey] = useState("");
   const [runType, setRunType] = useState<RunType>("capacity");
   const [applyPeak, setApplyPeak] = useState(true);
-  const [sim, setSim] = useState({ horizon_days: 30, warmup_days: 5, replications: 3, seed: 12345, arrival: "poisson", service: "stochastic", travel_mode: "geometry", road_network: "grid" });
+  const [sim, setSim] = useState({ horizon_days: 30, warmup_days: 5, replications: 3, seed: 12345, arrival: "poisson", service: "stochastic", travel_mode: "geometry", road_network: "grid", berth_rule: "order" });
   const [job, setJob] = useState<Run | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<unknown>(null);
@@ -181,6 +182,12 @@ export default function FileRunPage() {
                   <select className={inputCls} value={sim.road_network} disabled={sim.travel_mode !== "geometry"}
                     onChange={(e) => setSim({ ...sim, road_network: e.target.value })}>
                     <option value="grid">Lưới làn tự sinh theo block</option><option value="drawn">Theo đường vẽ trên mặt bằng</option>
+                  </select>
+                </Field>
+                <Field label="Chọn bến cho tàu">
+                  <select className={inputCls} value={sim.berth_rule} disabled={sim.travel_mode !== "geometry"}
+                    onChange={(e) => setSim({ ...sim, berth_rule: e.target.value })}>
+                    {Object.entries(BERTH_RULE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </Field>
               </div>
