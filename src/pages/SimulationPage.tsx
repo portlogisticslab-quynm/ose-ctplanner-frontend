@@ -18,7 +18,12 @@ interface Frame {
   t_h: number; berths_busy: number; vessels_waiting: number; sts_busy: number; veh_busy: number; veh_queue: number;
   yc_busy: number; yc_queue: number; gate_in_queue: number; inventory_teu: number; yard_occupancy: number | null;
   bo?: number[];   // V0.3.2: occupancy of each block (order: result.block_codes)
+  bv?: number[];   // V1.6.3: vessel class index at each berth (order: result.berth_codes; -1 = free)
 }
+
+// V1.6.3: one colour per vessel class in the overview
+const CLASS_COLORS = ["#1E3A8A", "#7C3AED", "#0F766E", "#C2410C", "#BE123C", "#4D7C0F"];
+const classColor = (i: number) => CLASS_COLORS[i % CLASS_COLORS.length];
 interface SimKpi { code: string; value: number; unit: string; std: number | null; ci_low: number | null; ci_high: number | null; n: number }
 
 const RES_LABEL: Record<string, string> = { berth: "Bến", sts: "STS", vehicle: "Xe vận chuyển ngang", yard_crane: "Cẩu bãi", gate_in: "Cổng vào", gate_out: "Cổng ra" };
@@ -41,7 +46,8 @@ export function HeatLegend({ perBlock }: { perBlock: boolean }) {
   );
 }
 
-function Animation({ layout, frames, berths, codes }: { layout: Layout; frames: Frame[]; berths: number; codes: string[] }) {
+function Animation({ layout, frames, berths, codes, berthCodes = [], classNames = [] }: {
+  layout: Layout; frames: Frame[]; berths: number; codes: string[]; berthCodes?: string[]; classNames?: string[] }) {
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(760);
   const [i, setI] = useState(0);
@@ -74,6 +80,10 @@ function Animation({ layout, frames, berths, codes }: { layout: Layout; frames: 
       return [p0, p1, [p1[0], p1[1] - 30], [p0[0], p0[1] - 30]] as Pt[];
     });
   }
+  // V1.6.3: berths actually occupied (and by which vessel class) when the run recorded them; older runs only have
+  // the number of busy berths, drawn on the first berths in layout order
+  const berthByCode = new Map(layout.objects.filter((o) => o.object_type === "berth").map((o) => [o.code, ringOf(o.geom)] as const));
+  const exact = !!f.bv && berthCodes.length === f.bv.length && berthCodes.length > 0 && berthCodes.every((c) => berthByCode.has(c));
   const gate = layout.objects.find((o) => o.object_type === "gate");
   const gc = gate ? centroid(ringOf(gate.geom)) : null;
   return (
@@ -97,7 +107,16 @@ function Animation({ layout, frames, berths, codes }: { layout: Layout; frames: 
               </Fragment>
             );
           })}
-          {slots.map((s, k) => (
+          {exact ? berthCodes.map((code, k) => {
+            const s = berthByCode.get(code) as Pt[];
+            const ci = f.bv![k];
+            return (
+              <Fragment key={`b${code}`}>
+                <Line points={s.flat()} closed stroke="#1E3A8A" strokeWidth={1.5 * px} fill={ci >= 0 ? classColor(ci) : "#E2E8F0"} />
+                {ci >= 0 && <Text x={centroid(s)[0]} y={centroid(s)[1]} text="TÀU" fontSize={10 * px} fill="#fff" offsetX={10 * px} offsetY={5 * px} />}
+              </Fragment>
+            );
+          }) : slots.map((s, k) => (
             <Fragment key={`b${k}`}>
               <Line points={s.flat()} closed stroke="#1E3A8A" strokeWidth={1.5 * px} fill={k < f.berths_busy ? "#1E3A8A" : "#E2E8F0"} />
               {k < f.berths_busy && <Text x={centroid(s)[0]} y={centroid(s)[1]} text="TÀU" fontSize={10 * px} fill="#fff" offsetX={10 * px} offsetY={5 * px} />}
@@ -130,6 +149,15 @@ function Animation({ layout, frames, berths, codes }: { layout: Layout; frames: 
         <span>Tàu chờ: <b>{f.vessels_waiting}</b></span>
         <span>Xe chờ cổng vào: <b>{f.gate_in_queue}</b></span>
       </div>
+      {exact && classNames.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+          <span>Tàu tại bến:</span>
+          {classNames.map((n, k) => (
+            <span key={n} className="flex items-center gap-1"><span className="inline-block h-3 w-3 rounded-sm" style={{ background: classColor(k) }} />{n}</span>
+          ))}
+        </div>
+      )}
+      {!exact && <p className="text-xs text-amber-700">Lần chạy này chỉ ghi số bến bận: chữ TÀU được tô lần lượt từ bến đầu tiên, không phải vị trí thật. Chạy lại mô phỏng để xem đúng bến và loại tàu.</p>}
       <HeatLegend perBlock={!!f.bo} />
     </div>
   );
@@ -300,7 +328,9 @@ export default function SimulationPage() {
             </Card>
           )}
           <div className="grid gap-3 lg:grid-cols-2">
-            <Card title="Tổng quan bãi theo thời gian">{layout.data ? <Animation layout={layout.data} frames={frames} berths={Number(res.params?.berths || 1)} codes={(res.block_codes as string[]) || []} /> : <Empty text="Đang tải layout…" />}</Card>
+            <Card title="Tổng quan bãi theo thời gian">{layout.data ? <Animation layout={layout.data} frames={frames} berths={Number(res.params?.berths || 1)} codes={(res.block_codes as string[]) || []}
+              berthCodes={(res.berth_codes as string[]) || []}
+              classNames={Array.isArray(res.vessel_classes) ? (res.vessel_classes as VesselClassRes[]).map((v) => v.name) : []} /> : <Empty text="Đang tải layout…" />}</Card>
             <div className="space-y-3">
               <Card title={<span>Hệ số sử dụng – nút thắt: <Badge tone="red">{RES_LABEL[res.bottleneck] || res.bottleneck}</Badge></span>}>
                 <Chart option={utilChart} height={Math.max(180, Object.keys(util).length * 34)} />
