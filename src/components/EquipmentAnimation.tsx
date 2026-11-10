@@ -102,6 +102,7 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
   L.quay.forEach(addPt);
   L.berths.forEach((b) => { addPt(b.a); addPt(b.b); });
   addPt(L.gate);
+  if (L.gate_out) addPt(L.gate_out);
   L.road.forEach((r) => { addPt([r[0], r[1]]); addPt([r[2], r[3]]); });
   const [nx, ny] = L.n;
   // V1.5: every berth has its own direction and normal (L-shaped quay, jetty); older replays fall back to the quay
@@ -235,7 +236,13 @@ export default function EquipmentAnimation({ runId, horizonH, frames = [], block
               </Fragment>
             ))}
             <Rect x={L.gate[0] - 8 * px} y={L.gate[1] - 8 * px} width={16 * px} height={16 * px} fill="#0F766E" />
-            <Text x={L.gate[0] + 10 * px} y={L.gate[1] - 6 * px} fontSize={11 * px} fill="#0F766E" text="Cổng" />
+            <Text x={L.gate[0] + 10 * px} y={L.gate[1] - 6 * px} fontSize={11 * px} fill="#0F766E" text={L.gate_out ? "Cổng vào" : "Cổng"} />
+            {L.gate_out && (
+              <>
+                <Rect x={L.gate_out[0] - 8 * px} y={L.gate_out[1] - 8 * px} width={16 * px} height={16 * px} fill="#B45309" />
+                <Text x={L.gate_out[0] + 10 * px} y={L.gate_out[1] - 6 * px} fontSize={11 * px} fill="#B45309" text="Cổng ra" />
+              </>
+            )}
           </Layer>
           <Layer>
             {vis.filter((s) => s.kind === "vessel").map(shape)}

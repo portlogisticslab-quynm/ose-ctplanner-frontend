@@ -10,7 +10,7 @@ export interface ReplayLayout {
   schematic: boolean; u: number[]; n: number[]; quay: number[][]; mode?: "grid" | "drawn";
   berths: { code: string; a: number[]; b: number[]; n?: number[] }[];   // V1.5: n = berth normal towards the yard
   blocks: { code: string; poly: number[][]; c: number[]; along_u?: boolean; width?: number; ang?: number }[];
-  points: Record<string, number[]>; gate: number[]; road: number[][]; drawn_roads?: number[][];
+  points: Record<string, number[]>; gate: number[]; gate_out?: number[] | null; road: number[][]; drawn_roads?: number[][];
   crane_points?: Record<string, number[]>; notes: string[];
 }
 export interface Replay {
