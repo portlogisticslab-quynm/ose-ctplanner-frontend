@@ -20,6 +20,7 @@ export default function Shell() {
           <nav className="flex flex-wrap gap-1">
             <NavLink to="/projects" className={link}>Dự án</NavLink>
             <NavLink to="/compare" className={link}>So sánh</NavLink>
+            <NavLink to="/sizing" className={link}>Quy hoạch sơ bộ</NavLink>
             {user && <NavLink to="/file-run" className={link}>Tính từ file</NavLink>}
             <NavLink to="/master-data" className={link}>Danh mục</NavLink>
             {user && <NavLink to="/audit" className={link}>Nhật ký</NavLink>}

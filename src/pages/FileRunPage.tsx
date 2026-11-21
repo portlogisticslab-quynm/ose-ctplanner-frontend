@@ -2,6 +2,7 @@
 // compute, see the result with its charts and download Excel / PDF / JSON. Nothing is stored in the database, so it
 // also works on the read-only backup server (Render). Results stay 30 minutes on the server, until reload here.
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { api } from "../api/client";
 import type { Run } from "../api/types";
 import EquipmentAnimation from "../components/EquipmentAnimation";
@@ -56,6 +57,17 @@ export default function FileRunPage() {
       setKey((i.scenarios.find((s) => s.baseline) || i.scenarios[0])?.key || "");
     } catch (e) { setErr(e); }
   }
+
+  // V1.7: "Kiểm tra bằng mô phỏng" of the tab Quy hoạch sơ bộ opens this page with the project file it built
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state as { file?: File; runType?: RunType } | null;
+    if (st?.file && user) {
+      if (st.runType) setRunType(st.runType);
+      void pick(st.file);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key, user?.id]);
 
   async function run() {
     if (!file) return;
