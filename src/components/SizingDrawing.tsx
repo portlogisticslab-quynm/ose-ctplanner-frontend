@@ -6,6 +6,7 @@ import type { Group, SizingResult } from "../lib/sizing";
 
 const GROUP_FILL: Record<Group, string> = { main: "#5D6D7E", reefer: "#16A085", empty: "#B3B6B7" };
 const GROUP_LABEL: Record<Group, string> = { main: "Có hàng", reefer: "Lạnh", empty: "Rỗng" };
+const STS_EXTRA = "#F39C12";
 const WATER = "#D6EAF8", SHIP = "#1F618D", STS = "#C0392B", APRON = "#E5E8E8", ROAD = "#F4F6F6", INK = "#1B2631";
 
 type View = { x: number; y: number; w: number; h: number };
@@ -71,7 +72,7 @@ function Plan({ r, svgRef }: { r: SizingResult; svgRef: React.RefObject<SVGSVGEl
   const water = Math.max(60, beam * 2.2);
   const siteL = r.site.length_m, siteD = r.site.depth_m;
   const full: View = useMemo(() => {
-    const w = Math.max(W, siteL || 0) + 120, h = Math.max(D, siteD || 0) + water + 90;
+    const w = Math.max(W, siteL || 0) + 120, h = Math.max(D, siteD || 0) + water + 120;
     return { x: -60, y: -water - 40, w, h };
   }, [W, D, siteL, siteD, water]);
   const [view, setView] = useState<View | null>(null);
@@ -122,7 +123,9 @@ function Plan({ r, svgRef }: { r: SizingResult; svgRef: React.RefObject<SVGSVGEl
             <text x={cx} y={-vb / 2 - 2 + fs / 3} fontSize={fs} fill="#fff" textAnchor="middle">{b.code}</text>
             {Array.from({ length: b.sts }, (_, k) => {
               const x = b.x0 + (b.x1 - b.x0) * (k + 1) / (b.sts + 1);
-              return <rect key={k} x={x - 4} y={-vb * 0.9} width={8} height={vb * 0.9 + r.inputs.apron.edge_m + r.inputs.apron.rail_span_m} fill={STS} opacity={0.85}><title>{`STS tại ${b.code}`}</title></rect>;
+              const extra = k >= b.sts_base;
+              return <rect key={k} x={x - 4} y={-vb * 0.9} width={8} height={vb * 0.9 + r.inputs.apron.edge_m + r.inputs.apron.rail_span_m} fill={extra ? STS_EXTRA : STS} opacity={0.9}>
+                <title>{extra ? `STS bổ sung tại ${b.code} (theo sản lượng năm hoặc dự phòng, dùng chung cả tuyến bến)` : `STS tại ${b.code} (${b.sts_base} cẩu cho tàu ${b.vessel})`}</title></rect>;
             })}
             {i > 0 && <line x1={b.x0} y1={-1.25 * beam} x2={b.x0} y2={0} stroke="#5DADE2" strokeWidth={fs / 10} />}
           </g>
@@ -173,9 +176,14 @@ function Plan({ r, svgRef }: { r: SizingResult; svgRef: React.RefObject<SVGSVGEl
             <text x={fs * 1.6}>{`${GROUP_LABEL[g]} (${r.yard.groups[g].blocks})`}</text>
           </g>
         ))}
-        <g transform={`translate(${groupsShown.length * fs * 9}, ${D + fs * 2.2})`}>
-          <rect width={fs * 1.2} height={fs * 0.9} y={-fs * 0.8} fill={STS} /><text x={fs * 1.6}>{`STS (${r.sts.count})`}</text>
+        <g transform={`translate(0, ${D + fs * 3.7})`}>
+          <rect width={fs * 1.2} height={fs * 0.9} y={-fs * 0.8} fill={STS} /><text x={fs * 1.6}>{`STS theo tàu (${r.sts.by_berth})`}</text>
         </g>
+        {r.sts.count > r.sts.by_berth && (
+          <g transform={`translate(${fs * 13}, ${D + fs * 3.7})`}>
+            <rect width={fs * 1.2} height={fs * 0.9} y={-fs * 0.8} fill={STS_EXTRA} /><text x={fs * 1.6}>{`STS bổ sung (${r.sts.count - r.sts.by_berth})`}</text>
+          </g>
+        )}
       </g>
     </svg>
   );

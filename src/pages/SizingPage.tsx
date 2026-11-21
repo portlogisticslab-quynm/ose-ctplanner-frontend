@@ -309,7 +309,7 @@ export default function SizingPage() {
                 </tbody>
               </table>
               {issueMap["vessels.classes"] && <p className="text-[11px] text-red-600">{issueMap["vessels.classes"]}</p>}
-              <p className="mt-1 text-[11px] text-slate-500">Tàu có LOA lớn nhất là tàu thiết kế; lớp có % chuyến lớn nhất là tàu thường gặp. STS: số cẩu cùng làm hàng cho một tàu của lớp đó (để trống = "STS mặc định" ở nhóm C). Tổng % chuyến khác 100% sẽ được chuẩn hoá.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Tàu có LOA lớn nhất là tàu thiết kế (bến B1); tàu chiếm bến lâu nhất (% chuyến × thời gian làm hàng) là tàu thường gặp (các bến còn lại). STS: số cẩu cùng làm hàng cho một tàu của lớp đó (để trống = "STS mặc định" ở nhóm C). Tổng % chuyến khác 100% sẽ được chuẩn hoá.</p>
             </div>
           </Group>
 
@@ -406,7 +406,7 @@ export default function SizingPage() {
                 <Kpi value={`${r.berth.n_berths} bến`} label={`W/S ${fmt(r.berth.ws ?? 0, 3)} · φ ${pct(r.berth.occupancy)}`}
                   sub={`chờ TB ≈ ${fmt(r.berth.wait_h, 1)} h/chuyến`} tone={r.warnings.some((w) => w.code === "BERTHS_NOT_ENOUGH") ? "warn" : undefined} />
                 <Kpi value={`${fmt(r.quay.length_m)} m`} label="chiều dài tuyến bến" sub={`${fmt(r.quay.teu_per_m)} TEU/m · apron ${fmt(r.quay.apron_m, 1)} m`} />
-                <Kpi value={`${r.sts.count} STS`} label={`${fmt(r.sts.moves_per_sts)} cont/STS/năm`} sub={`theo bến ${r.sts.per_berth.join(" + ")}${r.sts.spare ? ` (gồm ${r.sts.spare} dự phòng)` : ""}; theo sản lượng ≥ ${r.sts.by_throughput}`} />
+                <Kpi value={`${r.sts.count} STS`} label={`${fmt(r.sts.moves_per_sts)} cont/STS/năm`} sub={`theo tàu ${r.sts.base_per_berth.join(" + ")} = ${r.sts.by_berth}${r.sts.count > r.sts.by_berth ? ` + ${r.sts.count - r.sts.by_berth} bổ sung (${r.sts.by_throughput > r.sts.by_berth ? `sản lượng cần ${r.sts.by_throughput}` : ""}${r.sts.spare ? `${r.sts.by_throughput > r.sts.by_berth ? ", " : ""}${r.sts.spare} dự phòng` : ""})` : ""}`} />
                 <Kpi value={`${r.yard.blocks} khối`} label={SYSTEM_LABEL[r.yard.system]}
                   sub={`${r.yard.groups.main.rows} × ${r.yard.groups.main.bays} TEU × ${r.yard.groups.main.tiers} tầng · ${fmt(r.yard.capacity_teu)} TEU`} />
                 <Kpi value={`${fmt(r.areas.total_m2 / 1e4, 1)} ha`} label={`cảng ${fmt(r.areas.width_m)} × ${fmt(r.areas.depth_m)} m`}
@@ -462,8 +462,8 @@ function BerthTab({ r }: { r: SizingResult }) {
       <p>Tàu TB {fmt(v.cap_avg_teu)} TEU, xếp dỡ {fmt(v.call_teu)} TEU = {fmt(v.moves_per_call)} cont/chuyến → <b>{fmt(v.calls_year)} chuyến/năm</b> ({fmt(v.calls_week, 1)}/tuần).
         Thời gian làm hàng bình quân theo lớp tàu T_s = {fmt(b.service_h, 2)} h; cần {fmt(b.berth_hours)} giờ-bến/năm, mỗi bến khai thác được {fmt(b.available_h)} h/năm.
         Tàu thiết kế: {v.design.name} (LOA {v.design.loa_m} m, B {v.design.beam_m} m, mớn {v.design.draft_m} m).</p>
-      <Table head={["Lớp tàu", "% chuyến", "STS/tàu", "Cont/chuyến", "T_s (h)", "Chuyến/năm"]}
-        rows={v.classes.map((pc) => [pc.name, pct(pc.share), pc.sts_used < pc.sts ? <span key="s" className="text-amber-700" title={`Cần ${pc.sts}, mỗi bến chỉ có ${pc.sts_used}`}>{pc.sts_used} / {pc.sts}</span> : pc.sts,
+      <Table head={["Lớp tàu", "% chuyến", "% thời gian chiếm bến", "STS/tàu", "Cont/chuyến", "T_s (h)", "Chuyến/năm"]}
+        rows={v.classes.map((pc) => [<span key="n">{pc.name}{pc.name === v.design.name ? <Badge tone="blue">thiết kế · B1</Badge> : null}{pc.typical ? <Badge tone="green">thường gặp</Badge> : null}</span>, pct(pc.share), pct(pc.berth_time_share ?? 0), pc.sts_used < pc.sts ? <span key="s" className="text-amber-700" title={`Cần ${pc.sts}, mỗi bến chỉ có ${pc.sts_used}`}>{pc.sts_used} / {pc.sts}</span> : pc.sts,
           fmt(pc.moves_per_call), fmt(pc.service_h, 2), fmt(pc.calls_year)])} />
       <Table head={["Số bến", "φ", "W/S", "Đạt W/S", "Ngưỡng Thoresen", "φ tối đa", "Năng lực tối đa (TEU/năm)"]}
         rows={b.table.map((t) => [

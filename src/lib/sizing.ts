@@ -6,7 +6,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const SIZING_FORMAT = "ctplanner-sizing/1";
-export const SIZING_VERSION = "pianc-2026.11.2"; // V1.7.2: STS per vessel class, STS and quay-length rules
+export const SIZING_VERSION = "pianc-2026.11.3"; // V1.7.2: STS per vessel class, STS and quay-length rules
 const HOURS_YEAR = 8760;
 
 const WS_TABLE: Record<number, [number, number][]> = {
@@ -322,15 +322,15 @@ export interface BlockGroup { system: string; rows: number; bays: number; tiers:
 export interface Equip { category: string; type_code: string; quantity: number; area: string; rule: string; params: Record<string, number> }
 export interface Benchmark { key: string; label: string; value: number; low: number; high: number; ok: boolean; reference: string }
 export interface PlacedBlock { code: string; group: Group; cx: number; cy: number; length_m: number; width_m: number; rotation_deg: number }
-export interface LayoutBerth { code: string; x0: number; x1: number; sts: number; vessel: string; vessel_loa_m: number; vessel_beam_m: number }
+export interface LayoutBerth { code: string; x0: number; x1: number; sts: number; sts_base: number; vessel: string; vessel_loa_m: number; vessel_beam_m: number }
 export interface Layout { width_m: number; depth_m: number; apron_m: number; yard_start_m: number; yard_end_m: number; back_m: number; yard_area_m2: number; blocks: PlacedBlock[]; berths: LayoutBerth[]; gap_m: number }
-export interface ClassService { name: string; share: number; sts: number; sts_used: number; loa_m: number; moves_per_call: number; service_h: number; calls_year: number }
+export interface ClassService { name: string; share: number; sts: number; sts_used: number; loa_m: number; moves_per_call: number; service_h: number; calls_year: number; berth_time_share?: number; typical?: boolean }
 export interface SizingResult {
   inputs: SizingInputs;
   vessels: { cap_avg_teu: number; loa_mean_m: number; design: VesselClass; typical: VesselClass; call_teu: number; moves_per_call: number; calls_year: number; calls_week: number; classes: ClassService[] };
   berth: { service_h: number; berth_hours: number; available_h: number; table: BerthRow[]; n_berths: number; occupancy: number; ws: number | null; wait_h: number; capacity_teu: number };
   quay: { length_wg185_m: number; length_fixed_m: number; length_mixed_m: number; length_rule: LengthRule; length_m: number; berth_length_m: number; apron_m: number; teu_per_m: number; pocket: { length_tug_m: number; length_no_tug_m: number; width_m: number; depth_m: number } };
-  sts: { count: number; by_berth: number; by_throughput: number; spare: number; rule: StsRule; sts_max: number; sts_typical: number; per_berth: number[]; moves_year: number; moves_per_sts: number; teu_per_sts: number };
+  sts: { count: number; by_berth: number; by_throughput: number; spare: number; rule: StsRule; sts_max: number; sts_typical: number; per_berth: number[]; base_per_berth: number[]; moves_year: number; moves_per_sts: number; teu_per_sts: number };
   yard: { system: YardSystem; flows: Flow[]; groups: Record<Group, BlockGroup>; inventory_teu: number; capacity_teu: number; ground_slots: number; blocks: number; area_method_b_m2: number; area_method_a_m2: number; block_area_m2: number; method_diff: number };
   equipment: Equip[];
   gate: { truck_visits_year: number; trucks_per_hour: number; peak_per_hour: number; lanes_in: number; lanes_out: number; peak_hour_share: number };
@@ -361,8 +361,6 @@ export function compute(inputs: unknown): SizingResult {
   classes.forEach((v, i) => { loaMean += w[i] * v.loa_m; });
   let design = classes[0];
   for (const v of classes) if (v.loa_m > design.loa_m || (v.loa_m === design.loa_m && v.capacity_teu > design.capacity_teu)) design = v;
-  let typical = classes[0];
-  for (const v of classes) if (v.share > typical.share) typical = v;
   const callTeu = capAvg * vs.exchange_ratio;
   const movesCall = callTeu / fTeu;
   const callsYear = C / callTeu;
@@ -373,6 +371,12 @@ export function compute(inputs: unknown): SizingResult {
     const used = Math.min(v.sts as number, capSts);
     return { name: v.name, share: w[i], sts: v.sts as number, sts_used: used, loa_m: v.loa_m, moves_per_call: m, service_h: m / (used * b.gcr_mph * b.efficiency) + b.t0_h, calls_year: callsYear * w[i] };
   });
+  // "typical" vessel = the class that occupies the berths longest (calls × service time), not simply the most frequent
+  let kTyp = 0;
+  perClass.forEach((pc, i) => { if (pc.share * pc.service_h > perClass[kTyp].share * perClass[kTyp].service_h) kTyp = i; });
+  const typical = classes[kTyp];
+  const btTot = perClass.reduce((a, pc) => a + pc.share * pc.service_h, 0);
+  perClass.forEach((pc, i) => { pc.berth_time_share = pc.share * pc.service_h / btTot; pc.typical = i === kTyp; });
   const vessels = { cap_avg_teu: capAvg, loa_mean_m: loaMean, design: { ...design }, typical: { ...typical }, call_teu: callTeu, moves_per_call: movesCall, calls_year: callsYear, calls_week: callsYear / 52, classes: perClass };
 
   // berths
@@ -429,8 +433,12 @@ export function compute(inputs: unknown): SizingResult {
   const byThr = Math.ceil(movesYear / b.sts_moves_year);
   const nSts = Math.max(byBerth, byThr) + b.sts_spare;
   const perBerth = [...base];
-  for (let k = 0; k < nSts - byBerth; k++) perBerth[k % n] += 1;
-  const sts = { count: nSts, by_berth: byBerth, by_throughput: byThr, spare: b.sts_spare, rule: b.sts_rule, sts_max: stsMax, sts_typical: stsTyp, per_berth: perBerth, moves_year: movesYear, moves_per_sts: movesYear / nSts, teu_per_sts: C / nSts };
+  for (let e = 0; e < nSts - byBerth; e++) {
+    let k = 0;
+    for (let i = 1; i < n; i++) if (perBerth[i] < perBerth[k]) k = i;
+    perBerth[k] += 1;
+  }
+  const sts = { count: nSts, by_berth: byBerth, by_throughput: byThr, spare: b.sts_spare, rule: b.sts_rule, sts_max: stsMax, sts_typical: stsTyp, per_berth: perBerth, base_per_berth: base, moves_year: movesYear, moves_per_sts: movesYear / nSts, teu_per_sts: C / nSts };
 
   // yard flows
   const ts = c.transship_share;
@@ -470,7 +478,7 @@ export function compute(inputs: unknown): SizingResult {
     ground_slots: gs.main + gs.reefer + gs.empty, blocks: groups.main.blocks + groups.reefer.blocks + groups.empty.blocks,
     area_method_b_m2: sum(flows.map((f) => f.area_b_m2)), area_method_a_m2: 0, block_area_m2: 0, method_diff: 0,
   };
-  const lay = layout(x, lq, apronM, groups, n, design, typical, loaMean, perBerth);
+  const lay = layout(x, lq, apronM, groups, n, design, typical, loaMean, perBerth, base);
   yard.area_method_a_m2 = lay.yard_area_m2;
   yard.block_area_m2 = sum((["main", "reefer", "empty"] as Group[]).map((k) => groups[k].blocks * groups[k].block_length_m * groups[k].block_width_m));
   yard.method_diff = yard.area_method_b_m2 ? (yard.area_method_a_m2 - yard.area_method_b_m2) / yard.area_method_b_m2 : 0;
@@ -543,7 +551,7 @@ export function compute(inputs: unknown): SizingResult {
   return { inputs: x, vessels, berth, quay, sts, yard, equipment, gate, areas, site, benchmarks, warnings, layout: lay };
 }
 
-function berthSegments(x: SizingInputs, lq: number, n: number, design: VesselClass, typical: VesselClass, loaMean: number, sts: number[]): LayoutBerth[] {
+function berthSegments(x: SizingInputs, lq: number, n: number, design: VesselClass, typical: VesselClass, loaMean: number, sts: number[], stsBase: number[]): LayoutBerth[] {
   const gap = x.berth.gap_m;
   const need = x.berth.length_rule === "mixed" && n > 1 ? [design.loa_m + gap, ...Array(n - 1).fill(loaMean + gap)] : Array(n).fill(1);
   const tot = need.reduce((a: number, v: number) => a + v, 0);
@@ -552,13 +560,13 @@ function berthSegments(x: SizingInputs, lq: number, n: number, design: VesselCla
   for (let i = 0; i < n; i++) {
     const x1 = i === n - 1 ? lq : x0 + lq * need[i] / tot;
     const ship = i === 0 ? design : typical;
-    out.push({ code: `B${i + 1}`, x0, x1, sts: sts[i], vessel: ship.name, vessel_loa_m: ship.loa_m, vessel_beam_m: ship.beam_m });
+    out.push({ code: `B${i + 1}`, x0, x1, sts: sts[i], sts_base: stsBase[i], vessel: ship.name, vessel_loa_m: ship.loa_m, vessel_beam_m: ship.beam_m });
     x0 = x1;
   }
   return out;
 }
 
-function layout(x: SizingInputs, lq: number, apronM: number, groups: Record<Group, BlockGroup>, nBerths: number, design: VesselClass, typical: VesselClass, loaMean: number, sts: number[]): Layout {
+function layout(x: SizingInputs, lq: number, apronM: number, groups: Record<Group, BlockGroup>, nBerths: number, design: VesselClass, typical: VesselClass, loaMean: number, sts: number[], stsBase: number[]): Layout {
   const { yard: y, land, berth: b } = x;
   const width = lq, m = land.margin_m, road = y.road_m;
   const y0 = apronM + road;
@@ -620,7 +628,7 @@ function layout(x: SizingInputs, lq: number, apronM: number, groups: Record<Grou
   return {
     width_m: width, depth_m: yardEnd + back, apron_m: apronM, yard_start_m: y0, yard_end_m: yardEnd, back_m: back,
     yard_area_m2: width * (yardEnd - apronM), blocks,
-    berths: berthSegments(x, lq, nBerths, design, typical, loaMean, sts),
+    berths: berthSegments(x, lq, nBerths, design, typical, loaMean, sts, stsBase),
     gap_m: b.gap_m,
   };
 }
