@@ -59,6 +59,13 @@ describe("sizing – formulas", () => {
     expect(wsRatio(2, 0.6)).toBeCloseTo(0.22, 10);
     expect(wsRatio(3, 1)).toBe(Infinity);
     expect(maxOccupancy(2, 0.1)).toBeCloseTo(0.4667, 3);
+    expect(wsRatio(2, 0.5, "none")).toBeCloseTo(0.18, 10);
+    expect(wsRatio(2, 0.5, "high")).toBeCloseTo(0.084, 10);
+  });
+
+  it("fills STS by vessel size when a class gives none", () => {
+    const r = compute({ vessels: { classes: [{ name: "A", capacity_teu: 400, loa_m: 118, beam_m: 20, draft_m: 7, share: 1 }] } });
+    expect(r.vessels.classes[0].sts).toBe(1);
   });
 
   it("defaults give a CT15-like terminal", () => {

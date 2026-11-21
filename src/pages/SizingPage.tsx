@@ -9,8 +9,8 @@ import SizingDrawing from "../components/SizingDrawing";
 import { Badge, Button, Card, Chart, ErrorBox, Modal, Table, inputCls } from "../components/ui";
 import { fmt, pct } from "../lib/format";
 import {
-  DEFAULTS, FLOW_KEYS, FLOW_LABEL, LENGTH_RULE_LABEL, LIMIT_OF, STS_RULE_LABEL, SIZING_VERSION, SYSTEM_LABEL, SYSTEM_PRESET, SYSTEMS, getPath, inputsFromScenario,
-  setPath, tryCompute, withDefaults, wsRatio, type LengthRule, type SizingInputs, type SizingResult, type StsRule, type YardSystem,
+  ARRIVAL_LABEL, DEFAULTS, FLOW_KEYS, FLOW_LABEL, LENGTH_RULE_LABEL, LIMIT_OF, STS_RULE_LABEL, SIZING_VERSION, SYSTEM_LABEL, SYSTEM_PRESET, SYSTEMS, getPath, inputsFromScenario,
+  setPath, stsForSize, tryCompute, withDefaults, wsRatio, type LengthRule, type SizingInputs, type SizingResult, type StsRule, type YardSystem,
 } from "../lib/sizing";
 import { can, useAuth } from "../store/auth";
 
@@ -279,7 +279,7 @@ export default function SizingPage() {
                 const row = PIANC_VESSELS[Number(e.target.value)];
                 if (!row) return;
                 // STS per vessel by size (typical practice): feeder 2, ≤ 3.500 TEU 3, ≤ 7.100 TEU 4, larger 5–6
-                const sts = row[0] <= 1700 ? 2 : row[0] <= 3500 ? 3 : row[0] <= 7100 ? 4 : row[0] <= 12000 ? 5 : 6;
+                const sts = stsForSize(row[0]);
                 set("vessels.classes", [...classes, { name: `${row[0]} TEU`, capacity_teu: row[0], loa_m: row[1], beam_m: row[2], draft_m: row[3], share: 0, sts }]);
               }}>
                 <option value="">Chọn…</option>
@@ -309,7 +309,7 @@ export default function SizingPage() {
                 </tbody>
               </table>
               {issueMap["vessels.classes"] && <p className="text-[11px] text-red-600">{issueMap["vessels.classes"]}</p>}
-              <p className="mt-1 text-[11px] text-slate-500">Tàu có LOA lớn nhất là tàu thiết kế (bến B1); tàu chiếm bến lâu nhất (% chuyến × thời gian làm hàng) là tàu thường gặp (các bến còn lại). STS: số cẩu cùng làm hàng cho một tàu của lớp đó (để trống = "STS mặc định" ở nhóm C). Tổng % chuyến khác 100% sẽ được chuẩn hoá.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Tàu có LOA lớn nhất là tàu thiết kế (bến B1); tàu chiếm bến lâu nhất (% chuyến × thời gian làm hàng) là tàu thường gặp (các bến còn lại). STS: số cẩu cùng làm hàng cho một tàu của lớp đó (để trống = tự điền theo cỡ tàu: ≤ 500 TEU 1, ≤ 1.700 TEU 2, ≤ 3.500 TEU 3, ≤ 7.100 TEU 4, ≤ 12.000 TEU 5, lớn hơn 6). Tổng % chuyến khác 100% sẽ được chuẩn hoá.</p>
             </div>
           </Group>
 
@@ -318,10 +318,9 @@ export default function SizingPage() {
               <select className={inputCls} value={inputs.berth.sts_rule} onChange={(e) => set("berth.sts_rule", e.target.value as StsRule)}>
                 {(Object.keys(STS_RULE_LABEL) as StsRule[]).map((k) => <option key={k} value={k}>{STS_RULE_LABEL[k]}</option>)}
               </select></label>
-            {field("berth.sts_per_ship", "STS mặc định mỗi tàu", "chiếc")}
             {field("berth.sts_spare", "STS dự phòng", "chiếc")}
             {inputs.berth.sts_rule === "per_berth" && field("berth.sts_per_berth", "STS bố trí mỗi bến", "chiếc")}
-            {inputs.berth.sts_rule === "per_berth" && <span />}
+
             {field("berth.gcr_mph", "Năng suất gộp STS", "cont/h")}
             {field("berth.efficiency", "Hệ số hiệu quả η", "-")}
             {field("berth.t0_h", "Cập / rời T0", "h")}
@@ -332,9 +331,10 @@ export default function SizingPage() {
               <select className={inputCls} value={inputs.berth.length_rule} onChange={(e) => set("berth.length_rule", e.target.value as LengthRule)}>
                 {(Object.keys(LENGTH_RULE_LABEL) as LengthRule[]).map((k) => <option key={k} value={k}>{LENGTH_RULE_LABEL[k][0].toUpperCase() + LENGTH_RULE_LABEL[k].slice(1)}</option>)}
               </select></label>
-            <label className="flex flex-col gap-0.5 text-xs"><span className="text-slate-700">Kiểm soát giờ tàu đến</span>
+            <label className="col-span-2 flex flex-col gap-0.5 text-xs"><span className="text-slate-700">Kiểm soát giờ tàu đến
+              <span className="ml-1 cursor-help text-[10px] text-sky-700" title={"Không: tàu chạy rông, feeder không lịch, sà lan – đến ngẫu nhiên, chờ lâu hơn (W/S × 1,5).\nTrung bình: một phần tàu theo tuyến, cảng xếp cửa sổ cập bến nhưng tàu hay trễ – bảng UNCTAD E2/E2/n (PIANC 135 Bảng 3.10).\nCao: hầu hết tàu theo lịch tuần cố định, đúng giờ – chờ ít hơn (W/S × 0,7).\nCũng đổi ngưỡng hệ số khai thác Thoresen (Bảng 14.2)."}>ⓘ</span></span>
               <select className={inputCls} value={inputs.berth.arrival_control} onChange={(e) => set("berth.arrival_control", e.target.value)}>
-                <option value="none">Không</option><option value="average">Trung bình</option><option value="high">Cao (lịch cố định)</option>
+                {(["none", "average", "high"] as const).map((k) => <option key={k} value={k}>{ARRIVAL_LABEL[k]}</option>)}
               </select></label>
             {field("berth.sts_moves_year", "Năng lực năm mỗi STS", "cont")}
             {field("berth.min_berths", "Số bến tối thiểu", "bến")}
@@ -450,7 +450,7 @@ function BerthTab({ r }: { r: SizingResult }) {
       xAxis: { type: "value", name: "φ", min: 0, max: 1, axisLabel: { formatter: (x: number) => `${Math.round(x * 100)}%` } },
       yAxis: { type: "value", name: "W/S", min: 0, max: 0.5 },
       series: [
-        ...ns.map((n) => ({ name: `${n} bến`, type: "line", showSymbol: false, data: xs.map((x) => [x, Math.min(wsRatio(n, x), 0.6)]),
+        ...ns.map((n) => ({ name: `${n} bến`, type: "line", showSymbol: false, data: xs.map((x) => [x, Math.min(wsRatio(n, x, r.inputs.berth.arrival_control), 0.6)]),
           lineStyle: { width: n === b.n_berths ? 3 : 1.5 } })),
         { name: "W/S mục tiêu", type: "line", showSymbol: false, data: [[0, r.inputs.berth.ws_target], [1, r.inputs.berth.ws_target]], lineStyle: { type: "dashed", color: "#E74C3C" } },
         { name: "Phương án", type: "scatter", symbolSize: 12, data: [[b.occupancy, b.ws ?? 0]], itemStyle: { color: "#C0392B" } },
@@ -470,7 +470,7 @@ function BerthTab({ r }: { r: SizingResult }) {
           <b key="n" className={t.n === b.n_berths ? "text-navy" : ""}>{t.n}{t.n === b.n_berths ? " ✔" : ""}</b>, pct(t.occupancy),
           t.ws === null ? "∞" : fmt(t.ws, 3), t.ok ? <Badge tone="green">Đạt</Badge> : <Badge tone="red">Không</Badge>,
           <span key="t" className={t.thoresen_ok ? "" : "text-amber-700"}>{pct(t.thoresen_limit)}</span>, pct(t.occupancy_max), fmt(t.capacity_teu)])} />
-      <p className="text-xs text-slate-500">Cột cuối = sản lượng lớn nhất mà số bến đó còn giữ được W/S mục tiêu – mốc phải mở thêm bến. 1–3 bến: bảng UNCTAD E2/E2/n (PIANC 135 Bảng 3.10); từ 4 bến: Erlang C × 0,38.</p>
+      <p className="text-xs text-slate-500">Cột cuối = sản lượng lớn nhất mà số bến đó còn giữ được W/S mục tiêu – mốc phải mở thêm bến. 1–3 bến: bảng UNCTAD E2/E2/n (PIANC 135 Bảng 3.10); từ 4 bến: Erlang C × 0,38; nhân hệ số kiểm soát giờ tàu (Không × 1,5; Trung bình × 1; Cao × 0,7).</p>
       <Chart option={option} height={260} />
       <p>Chiều dài tuyến bến: WG 185 = {fmt(r.quay.length_wg185_m, 1)} m; bến cố định theo tàu thiết kế = {fmt(r.quay.length_fixed_m, 1)} m;
         1 bến tàu lớn nhất + bến tàu thường gặp = {fmt(r.quay.length_mixed_m, 1)} m → chọn theo "{LENGTH_RULE_LABEL[r.quay.length_rule]}": <b>{fmt(r.quay.length_m)} m</b>

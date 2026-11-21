@@ -6,7 +6,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const SIZING_FORMAT = "ctplanner-sizing/1";
-export const SIZING_VERSION = "pianc-2026.11.3"; // V1.7.2: STS per vessel class, STS and quay-length rules
+export const SIZING_VERSION = "pianc-2026.11.4"; // V1.7.2: STS per vessel class, STS and quay-length rules
 const HOURS_YEAR = 8760;
 
 const WS_TABLE: Record<number, [number, number][]> = {
@@ -19,6 +19,12 @@ const THORESEN_BOR: Record<number, [number, number, number]> = {
   1: [0.25, 0.35, 0.45], 2: [0.4, 0.45, 0.5], 3: [0.45, 0.5, 0.55], 4: [0.55, 0.6, 0.65], 5: [0.6, 0.65, 0.7], 6: [0.65, 0.7, 0.75],
 };
 export const ARRIVAL: Record<string, number> = { none: 0, average: 1, high: 2 };
+// V1.7.4: control of arrivals scales the waiting time (Allen–Cunneen, Erlang-2 service): random arrivals × 1.5,
+// the UNCTAD E2/E2/n table × 1, vessels on a fixed schedule × 0.7.
+export const ARRIVAL_WS_FACTOR: Record<string, number> = { none: 1.5, average: 1.0, high: 0.7 };
+export const ARRIVAL_LABEL: Record<string, string> = {
+  none: "Không – đến ngẫu nhiên (W/S × 1,5)", average: "Trung bình – một phần theo lịch (UNCTAD)", high: "Cao – lịch cố định (W/S × 0,7)",
+};
 const A_TEU_GANTRY: Record<number, [number, number, number]> = { 2: [21, 18, 15], 3: [14, 12, 10], 4: [11, 9, 8], 5: [8, 7, 6] };
 const A_TEU_RS: Record<number, number> = { 1: 72, 2: 36, 3: 24, 4: 18 };
 export type YardSystem = "RTG" | "RMG" | "ASC";
@@ -60,7 +66,7 @@ export interface SizingInputs {
   };
   vessels: { exchange_ratio: number; classes: VesselClass[] };
   berth: {
-    sts_per_ship: number; gcr_mph: number; efficiency: number; t0_h: number; availability: number; ws_target: number; gap_m: number;
+    gcr_mph: number; efficiency: number; t0_h: number; availability: number; ws_target: number; gap_m: number;
     arrival_control: "none" | "average" | "high"; sts_per_berth: number; sts_moves_year: number; min_berths: number; max_berths: number;
     sts_rule: StsRule; sts_spare: number; length_rule: LengthRule;
   };
@@ -94,7 +100,7 @@ export const DEFAULTS: SizingInputs = {
     ],
   },
   berth: {
-    sts_per_ship: 2, gcr_mph: 25, efficiency: 0.85, t0_h: 2, availability: 0.95, ws_target: 0.1, gap_m: 20,
+    gcr_mph: 25, efficiency: 0.85, t0_h: 2, availability: 0.95, ws_target: 0.1, gap_m: 20,
     arrival_control: "average", sts_per_berth: 2, sts_moves_year: 100000, min_berths: 1, max_berths: 8,
     sts_rule: "mixed", sts_spare: 0, length_rule: "max",
   },
@@ -118,7 +124,7 @@ export const LIMITS: [string, number, number, string][] = [
   ["cargo.dg_share", 0, 0.3, "Tỷ lệ hàng nguy hiểm"], ["cargo.peak_factor", 1, 3, "Hệ số cao điểm"],
   ["cargo.operating_days", 200, 366, "Số ngày khai thác"],
   ["vessels.exchange_ratio", 0.05, 2, "Tỷ lệ xếp dỡ mỗi chuyến"],
-  ["berth.sts_per_ship", 1, 12, "STS mỗi tàu"], ["berth.gcr_mph", 5, 60, "Năng suất STS"],
+  ["berth.gcr_mph", 5, 60, "Năng suất STS"],
   ["berth.efficiency", 0.3, 1, "Hệ số hiệu quả η"], ["berth.t0_h", 0, 24, "T0"],
   ["berth.availability", 0.5, 1, "A_w"], ["berth.ws_target", 0.01, 1, "W/S mục tiêu"],
   ["berth.gap_m", 0, 100, "Khe hở tàu"], ["berth.sts_per_berth", 1, 12, "STS mỗi bến"],
@@ -145,7 +151,7 @@ export const LIMITS: [string, number, number, string][] = [
   ["thoresen.H", 0.3, 1, "Thoresen H"], ["thoresen.Bf", 0, 0.5, "Thoresen Bf"], ["thoresen.N", 0.3, 1, "Thoresen N"],
   ["thoresen.L", 0.3, 1, "Thoresen L"], ["thoresen.S", 0.3, 1, "Thoresen S"],
 ];
-const INT_KEYS = new Set(["berth.sts_per_ship", "berth.sts_per_berth", "berth.sts_spare", "berth.min_berths", "berth.max_berths", "apron.lanes",
+const INT_KEYS = new Set(["berth.sts_per_berth", "berth.sts_spare", "berth.min_berths", "berth.max_berths", "apron.lanes",
   "yard.rows", "yard.tiers", "yard.bays", "yard.rows_per_road", "yard.reefer_tiers", "yard.empty_tiers", "yard.empty_rows"]);
 export const LIMIT_OF: Record<string, [number, number]> = Object.fromEntries(LIMITS.map(([p, lo, hi]) => [p, [lo, hi]]));
 
@@ -263,7 +269,7 @@ export function normalize(inputs: unknown): SizingInputs {
   p.name = (String(p.name || "Quy hoạch sơ bộ").trim() || "Quy hoạch sơ bộ").slice(0, 200);
   p.location = String(p.location || "").slice(0, 200);
   if (issues.length) throw new SizingInputError(issues);
-  for (const v of clean) if (v.sts === null) v.sts = x.berth.sts_per_ship;
+  for (const v of clean) if (v.sts === null) v.sts = stsForSize(v.capacity_teu);
   return x as SizingInputs;
 }
 
@@ -281,7 +287,15 @@ export function erlangC(n: number, a: number): number {
   const last = term * a / n / (1 - a / n);
   return last / (s + last);
 }
-export function wsRatio(n: number, rho: number): number {
+/** STS working one vessel when the class gives none (V1.7.4), by vessel size. */
+export function stsForSize(capacityTeu: number): number {
+  for (const [cap, sts] of [[500, 1], [1700, 2], [3500, 3], [7100, 4], [12000, 5]]) if (capacityTeu <= cap) return sts;
+  return 6;
+}
+export function wsRatio(n: number, rho: number, control = "average"): number {
+  return ARRIVAL_WS_FACTOR[control] * wsE2(n, rho);
+}
+function wsE2(n: number, rho: number): number {
   if (rho <= 0) return 0;
   if (rho >= 1) return Infinity;
   const t = WS_TABLE[n];
@@ -291,11 +305,11 @@ export function wsRatio(n: number, rho: number): number {
   }
   return ERLANG_FACTOR * erlangC(n, n * rho) / (n * (1 - rho));
 }
-export function maxOccupancy(n: number, target: number): number {
+export function maxOccupancy(n: number, target: number, control = "average"): number {
   let lo = 0, hi = 0.999;
   for (let i = 0; i < 60; i++) {
     const mid = (lo + hi) / 2;
-    if (wsRatio(n, mid) <= target) lo = mid; else hi = mid;
+    if (wsRatio(n, mid, control) <= target) lo = mid; else hi = mid;
   }
   return lo;
 }
@@ -388,9 +402,9 @@ export function compute(inputs: unknown): SizingResult {
   let chosen: number | null = null;
   for (let n = 1; n <= Math.max(b.max_berths, 8); n++) {
     const rho = berthHours / (n * availH);
-    const ws = wsRatio(n, rho);
+    const ws = wsRatio(n, rho, b.arrival_control);
     const lim = thoresenLimit(n, b.arrival_control);
-    const rhoMax = maxOccupancy(n, b.ws_target);
+    const rhoMax = maxOccupancy(n, b.ws_target, b.arrival_control);
     const cap = rhoMax * n * availH / serviceH * callTeu;
     const ok = rho < 1 && ws <= b.ws_target + 1e-12;
     table.push({ n, occupancy: rho, ws: Number.isFinite(ws) ? ws : null, ok, thoresen_limit: lim, thoresen_ok: rho <= lim, occupancy_max: rhoMax, capacity_teu: cap });
