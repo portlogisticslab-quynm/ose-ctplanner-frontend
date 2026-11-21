@@ -89,9 +89,24 @@
       }
      ]
     },
+    "classes": [
+     [
+      2,
+      8.37571
+     ],
+     [
+      2,
+      12.6262
+     ],
+     [
+      2,
+      15.814
+     ]
+    ],
     "quay": {
      "length_wg185_m": 797.92,
      "length_fixed_m": 808.0,
+     "length_mixed_m": 747.4,
      "length_m": 810.0,
      "apron_m": 58.98,
      "teu_per_m": 1049.38
@@ -99,8 +114,40 @@
     "sts": {
      "count": 8,
      "by_berth": 8,
-     "by_throughput": 6
+     "by_throughput": 6,
+     "per_berth": [
+      2,
+      2,
+      2,
+      2
+     ]
     },
+    "berths": [
+     [
+      "B1",
+      0.0,
+      202.5,
+      2
+     ],
+     [
+      "B2",
+      202.5,
+      405.0,
+      2
+     ],
+     [
+      "B3",
+      405.0,
+      607.5,
+      2
+     ],
+     [
+      "B4",
+      607.5,
+      810.0,
+      2
+     ]
+    ],
     "flows": [
      {
       "key": "import",
@@ -577,9 +624,20 @@
       }
      ]
     },
+    "classes": [
+     [
+      4,
+      15.6622
+     ],
+     [
+      4,
+      26.2884
+     ]
+    ],
     "quay": {
      "length_wg185_m": 1152.0,
      "length_fixed_m": 1122.0,
+     "length_mixed_m": 1074.0,
      "length_m": 1160.0,
      "apron_m": 100.0,
      "teu_per_m": 1293.1
@@ -587,8 +645,33 @@
     "sts": {
      "count": 12,
      "by_berth": 12,
-     "by_throughput": 10
+     "by_throughput": 10,
+     "per_berth": [
+      4,
+      4,
+      4
+     ]
     },
+    "berths": [
+     [
+      "B1",
+      0.0,
+      386.667,
+      4
+     ],
+     [
+      "B2",
+      386.667,
+      773.333,
+      4
+     ],
+     [
+      "B3",
+      773.333,
+      1160.0,
+      4
+     ]
+    ],
     "flows": [
      {
       "key": "import",
@@ -973,9 +1056,24 @@
       }
      ]
     },
+    "classes": [
+     [
+      2,
+      8.37571
+     ],
+     [
+      2,
+      12.6262
+     ],
+     [
+      2,
+      15.814
+     ]
+    ],
     "quay": {
      "length_wg185_m": 408.96,
      "length_fixed_m": 414.0,
+     "length_mixed_m": 393.8,
      "length_m": 420.0,
      "apron_m": 58.98,
      "teu_per_m": 714.286
@@ -983,8 +1081,26 @@
     "sts": {
      "count": 4,
      "by_berth": 4,
-     "by_throughput": 2
+     "by_throughput": 2,
+     "per_berth": [
+      2,
+      2
+     ]
     },
+    "berths": [
+     [
+      "B1",
+      0.0,
+      210.0,
+      2
+     ],
+     [
+      "B2",
+      210.0,
+      420.0,
+      2
+     ]
+    ],
     "flows": [
      {
       "key": "import",
@@ -1296,9 +1412,16 @@
       }
      ]
     },
+    "classes": [
+     [
+      1,
+      21.6078
+     ]
+    ],
     "quay": {
      "length_wg185_m": 361.0,
      "length_fixed_m": 330.0,
+     "length_mixed_m": 330.0,
      "length_m": 370.0,
      "apron_m": 58.98,
      "teu_per_m": 324.324
@@ -1306,8 +1429,26 @@
     "sts": {
      "count": 2,
      "by_berth": 2,
-     "by_throughput": 1
+     "by_throughput": 1,
+     "per_berth": [
+      1,
+      1
+     ]
     },
+    "berths": [
+     [
+      "B1",
+      0.0,
+      185.0,
+      1
+     ],
+     [
+      "B2",
+      185.0,
+      370.0,
+      1
+     ]
+    ],
     "flows": [
      {
       "key": "import",
@@ -1497,6 +1638,1029 @@
       "E01",
       185.0,
       252.68,
+      0.0
+     ]
+    ],
+    "site_fits": true
+   }
+  },
+  "mixed_sts_quay": {
+   "inputs": {
+    "vessels": {
+     "classes": [
+      {
+       "name": "Feeder 1000",
+       "capacity_teu": 1000,
+       "loa_m": 158,
+       "beam_m": 23.3,
+       "draft_m": 8.7,
+       "share": 0.7,
+       "sts": 2
+      },
+      {
+       "name": "4200 TEU",
+       "capacity_teu": 4200,
+       "loa_m": 268,
+       "beam_m": 32.3,
+       "draft_m": 13.4,
+       "share": 0.3,
+       "sts": 4
+      }
+     ]
+    },
+    "berth": {
+     "length_rule": "mixed",
+     "sts_spare": 1
+    }
+   },
+   "expected": {
+    "vessels": {
+     "cap_avg_teu": 1960.0,
+     "loa_mean_m": 191.0,
+     "call_teu": 1372.0,
+     "moves_per_call": 885.161,
+     "calls_year": 619.534
+    },
+    "berth": {
+     "service_h": 16.1328,
+     "n_berths": 3,
+     "occupancy": 0.400338,
+     "table": [
+      {
+       "n": 1,
+       "occupancy": 1.20101,
+       "ws": null,
+       "ok": false,
+       "thoresen_ok": false,
+       "occupancy_max": 0.230769,
+       "capacity_teu": 163324.0
+      },
+      {
+       "n": 2,
+       "occupancy": 0.600506,
+       "ws": 0.220962,
+       "ok": false,
+       "thoresen_ok": false,
+       "occupancy_max": 0.466667,
+       "capacity_teu": 660554.0
+      },
+      {
+       "n": 3,
+       "occupancy": 0.400338,
+       "ws": 0.0201013,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.583333,
+       "capacity_teu": 1238540.0
+      },
+      {
+       "n": 4,
+       "occupancy": 0.300253,
+       "ws": 0.00504365,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.655651,
+       "capacity_teu": 1856110.0
+      },
+      {
+       "n": 5,
+       "occupancy": 0.240203,
+       "ws": 0.000824471,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.705789,
+       "capacity_teu": 2497560.0
+      },
+      {
+       "n": 6,
+       "occupancy": 0.200169,
+       "ws": 0.000124156,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.742039,
+       "capacity_teu": 3151010.0
+      },
+      {
+       "n": 7,
+       "occupancy": 0.171573,
+       "ws": 1.70209e-05,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.769609,
+       "capacity_teu": 3812760.0
+      },
+      {
+       "n": 8,
+       "occupancy": 0.150127,
+       "ws": 2.12448e-06,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.791363,
+       "capacity_teu": 4480610.0
+      }
+     ]
+    },
+    "classes": [
+     [
+      2,
+      12.6262
+     ],
+     [
+      4,
+      24.315
+     ]
+    ],
+    "quay": {
+     "length_wg185_m": 716.3,
+     "length_fixed_m": 884.0,
+     "length_mixed_m": 730.0,
+     "length_m": 730.0,
+     "apron_m": 58.98,
+     "teu_per_m": 1164.38
+    },
+    "sts": {
+     "count": 9,
+     "by_berth": 8,
+     "by_throughput": 6,
+     "per_berth": [
+      5,
+      2,
+      2
+     ]
+    },
+    "berths": [
+     [
+      "B1",
+      0.0,
+      296.113,
+      5
+     ],
+     [
+      "B2",
+      296.113,
+      513.056,
+      2
+     ],
+     [
+      "B3",
+      513.056,
+      730.0,
+      2
+     ]
+    ],
+    "flows": [
+     {
+      "key": "import",
+      "teu_year": 363375.0,
+      "inventory_teu": 5973.29,
+      "capacity_teu": 9955.48,
+      "ground_slots": 2488.87,
+      "a_teu_m2": 10.0,
+      "area_b_m2": 144930.0
+     },
+     {
+      "key": "export",
+      "teu_year": 363375.0,
+      "inventory_teu": 4479.97,
+      "capacity_teu": 7466.61,
+      "ground_slots": 1866.65,
+      "a_teu_m2": 10.0,
+      "area_b_m2": 108698.0
+     },
+     {
+      "key": "transship",
+      "teu_year": 0.0,
+      "inventory_teu": 0.0,
+      "capacity_teu": 0.0,
+      "ground_slots": 0.0,
+      "a_teu_m2": 10.0,
+      "area_b_m2": 0.0
+     },
+     {
+      "key": "dg",
+      "teu_year": 7650.0,
+      "inventory_teu": 62.8767,
+      "capacity_teu": 104.795,
+      "ground_slots": 26.1986,
+      "a_teu_m2": 10.0,
+      "area_b_m2": 1525.58
+     },
+     {
+      "key": "reefer",
+      "teu_year": 30600.0,
+      "inventory_teu": 419.178,
+      "capacity_teu": 698.63,
+      "ground_slots": 218.322,
+      "a_teu_m2": 13.0,
+      "area_b_m2": 13221.7
+     },
+     {
+      "key": "empty",
+      "teu_year": 85000.0,
+      "inventory_teu": 2794.52,
+      "capacity_teu": 4657.53,
+      "ground_slots": 862.506,
+      "a_teu_m2": 12.0,
+      "area_b_m2": 81364.3
+     }
+    ],
+    "groups": {
+     "main": {
+      "blocks": 25,
+      "block_length_m": 195.0,
+      "block_width_m": 24.4,
+      "ground_slots": 4381.72
+     },
+     "reefer": {
+      "blocks": 2,
+      "block_length_m": 195.0,
+      "block_width_m": 24.4,
+      "ground_slots": 218.322
+     },
+     "empty": {
+      "blocks": 5,
+      "block_length_m": 195.0,
+      "block_width_m": 17.4,
+      "ground_slots": 862.506
+     }
+    },
+    "yard": {
+     "area_method_a_m2": 279152.0,
+     "area_method_b_m2": 349739.0,
+     "capacity_teu": 22883.0,
+     "inventory_teu": 13729.8
+    },
+    "equipment": [
+     [
+      "STS",
+      9
+     ],
+     [
+      "RTG",
+      26
+     ],
+     [
+      "ECH",
+      3
+     ],
+     [
+      "TT",
+      40
+     ]
+    ],
+    "gate": {
+     "lanes_in": 5,
+     "lanes_out": 3,
+     "peak_per_hour": 46.951
+    },
+    "areas": {
+     "width_m": 730.0,
+     "depth_m": 521.38,
+     "total_m2": 380607.0,
+     "m2_per_m": 521.38
+    },
+    "benchmarks": [
+     [
+      "teu_per_m",
+      1164.38,
+      true
+     ],
+     [
+      "moves_per_sts",
+      60931.9,
+      true
+     ],
+     [
+      "teu_per_sts",
+      94444.4,
+      true
+     ],
+     [
+      "m2_per_m",
+      521.38,
+      true
+     ],
+     [
+      "ha_per_berth",
+      12.6869,
+      true
+     ],
+     [
+      "teu_per_m2_yard",
+      3.04494,
+      true
+     ],
+     [
+      "m_quay_per_sts",
+      81.1111,
+      true
+     ]
+    ],
+    "warnings": [],
+    "blocks": [
+     [
+      "A01",
+      145.0,
+      86.18,
+      0.0
+     ],
+     [
+      "A02",
+      365.0,
+      86.18,
+      0.0
+     ],
+     [
+      "A03",
+      585.0,
+      86.18,
+      0.0
+     ],
+     [
+      "A04",
+      145.0,
+      116.58,
+      0.0
+     ],
+     [
+      "A05",
+      365.0,
+      116.58,
+      0.0
+     ],
+     [
+      "A06",
+      585.0,
+      116.58,
+      0.0
+     ],
+     [
+      "A07",
+      145.0,
+      146.98,
+      0.0
+     ],
+     [
+      "A08",
+      365.0,
+      146.98,
+      0.0
+     ],
+     [
+      "A09",
+      585.0,
+      146.98,
+      0.0
+     ],
+     [
+      "A10",
+      145.0,
+      186.38,
+      0.0
+     ],
+     [
+      "A11",
+      365.0,
+      186.38,
+      0.0
+     ],
+     [
+      "A12",
+      585.0,
+      186.38,
+      0.0
+     ],
+     [
+      "A13",
+      145.0,
+      216.78,
+      0.0
+     ],
+     [
+      "A14",
+      365.0,
+      216.78,
+      0.0
+     ],
+     [
+      "A15",
+      585.0,
+      216.78,
+      0.0
+     ],
+     [
+      "A16",
+      145.0,
+      247.18,
+      0.0
+     ],
+     [
+      "A17",
+      365.0,
+      247.18,
+      0.0
+     ],
+     [
+      "A18",
+      585.0,
+      247.18,
+      0.0
+     ],
+     [
+      "A19",
+      145.0,
+      286.58,
+      0.0
+     ],
+     [
+      "A20",
+      365.0,
+      286.58,
+      0.0
+     ],
+     [
+      "A21",
+      585.0,
+      286.58,
+      0.0
+     ],
+     [
+      "A22",
+      145.0,
+      316.98,
+      0.0
+     ],
+     [
+      "A23",
+      365.0,
+      316.98,
+      0.0
+     ],
+     [
+      "A24",
+      585.0,
+      316.98,
+      0.0
+     ],
+     [
+      "A25",
+      145.0,
+      347.38,
+      0.0
+     ],
+     [
+      "R01",
+      365.0,
+      347.38,
+      0.0
+     ],
+     [
+      "R02",
+      585.0,
+      347.38,
+      0.0
+     ],
+     [
+      "E01",
+      145.0,
+      383.28,
+      0.0
+     ],
+     [
+      "E02",
+      365.0,
+      383.28,
+      0.0
+     ],
+     [
+      "E03",
+      585.0,
+      383.28,
+      0.0
+     ],
+     [
+      "E04",
+      255.0,
+      417.68,
+      0.0
+     ],
+     [
+      "E05",
+      475.0,
+      417.68,
+      0.0
+     ]
+    ],
+    "site_fits": true
+   }
+  },
+  "per_berth_capped": {
+   "inputs": {
+    "vessels": {
+     "classes": [
+      {
+       "name": "Feeder 1000",
+       "capacity_teu": 1000,
+       "loa_m": 158,
+       "beam_m": 23.3,
+       "draft_m": 8.7,
+       "share": 0.7,
+       "sts": 2
+      },
+      {
+       "name": "4200 TEU",
+       "capacity_teu": 4200,
+       "loa_m": 268,
+       "beam_m": 32.3,
+       "draft_m": 13.4,
+       "share": 0.3,
+       "sts": 4
+      }
+     ]
+    },
+    "berth": {
+     "sts_rule": "per_berth",
+     "sts_per_berth": 3,
+     "length_rule": "wg185"
+    }
+   },
+   "expected": {
+    "vessels": {
+     "cap_avg_teu": 1960.0,
+     "loa_mean_m": 191.0,
+     "call_teu": 1372.0,
+     "moves_per_call": 885.161,
+     "calls_year": 619.534
+    },
+    "berth": {
+     "service_h": 18.3643,
+     "n_berths": 3,
+     "occupancy": 0.455712,
+     "table": [
+      {
+       "n": 1,
+       "occupancy": 1.36714,
+       "ws": null,
+       "ok": false,
+       "thoresen_ok": false,
+       "occupancy_max": 0.230769,
+       "capacity_teu": 143478.0
+      },
+      {
+       "n": 2,
+       "occupancy": 0.683569,
+       "ws": 0.37878,
+       "ok": false,
+       "thoresen_ok": false,
+       "occupancy_max": 0.466667,
+       "capacity_teu": 580288.0
+      },
+      {
+       "n": 3,
+       "occupancy": 0.455712,
+       "ws": 0.0367137,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.583333,
+       "capacity_teu": 1088040.0
+      },
+      {
+       "n": 4,
+       "occupancy": 0.341784,
+       "ws": 0.00808298,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.655651,
+       "capacity_teu": 1630570.0
+      },
+      {
+       "n": 5,
+       "occupancy": 0.273427,
+       "ws": 0.00145873,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.705789,
+       "capacity_teu": 2194080.0
+      },
+      {
+       "n": 6,
+       "occupancy": 0.227856,
+       "ws": 0.000245457,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.742039,
+       "capacity_teu": 2768120.0
+      },
+      {
+       "n": 7,
+       "occupancy": 0.195305,
+       "ws": 3.78381e-05,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.769609,
+       "capacity_teu": 3349460.0
+      },
+      {
+       "n": 8,
+       "occupancy": 0.170892,
+       "ws": 5.32975e-06,
+       "ok": true,
+       "thoresen_ok": true,
+       "occupancy_max": 0.791363,
+       "capacity_teu": 3936160.0
+      }
+     ]
+    },
+    "classes": [
+     [
+      2,
+      12.6262
+     ],
+     [
+      3,
+      31.7533
+     ]
+    ],
+    "quay": {
+     "length_wg185_m": 716.3,
+     "length_fixed_m": 884.0,
+     "length_mixed_m": 730.0,
+     "length_m": 720.0,
+     "apron_m": 58.98,
+     "teu_per_m": 1180.56
+    },
+    "sts": {
+     "count": 9,
+     "by_berth": 9,
+     "by_throughput": 6,
+     "per_berth": [
+      3,
+      3,
+      3
+     ]
+    },
+    "berths": [
+     [
+      "B1",
+      0.0,
+      240.0,
+      3
+     ],
+     [
+      "B2",
+      240.0,
+      480.0,
+      3
+     ],
+     [
+      "B3",
+      480.0,
+      720.0,
+      3
+     ]
+    ],
+    "flows": [
+     {
+      "key": "import",
+      "teu_year": 363375.0,
+      "inventory_teu": 5973.29,
+      "capacity_teu": 9955.48,
+      "ground_slots": 2488.87,
+      "a_teu_m2": 10.0,
+      "area_b_m2": 144930.0
+     },
+     {
+      "key": "export",
+      "teu_year": 363375.0,
+      "inventory_teu": 4479.97,
+      "capacity_teu": 7466.61,
+      "ground_slots": 1866.65,
+      "a_teu_m2": 10.0,
+      "area_b_m2": 108698.0
+     },
+     {
+      "key": "transship",
+      "teu_year": 0.0,
+      "inventory_teu": 0.0,
+      "capacity_teu": 0.0,
+      "ground_slots": 0.0,
+      "a_teu_m2": 10.0,
+      "area_b_m2": 0.0
+     },
+     {
+      "key": "dg",
+      "teu_year": 7650.0,
+      "inventory_teu": 62.8767,
+      "capacity_teu": 104.795,
+      "ground_slots": 26.1986,
+      "a_teu_m2": 10.0,
+      "area_b_m2": 1525.58
+     },
+     {
+      "key": "reefer",
+      "teu_year": 30600.0,
+      "inventory_teu": 419.178,
+      "capacity_teu": 698.63,
+      "ground_slots": 218.322,
+      "a_teu_m2": 13.0,
+      "area_b_m2": 13221.7
+     },
+     {
+      "key": "empty",
+      "teu_year": 85000.0,
+      "inventory_teu": 2794.52,
+      "capacity_teu": 4657.53,
+      "ground_slots": 862.506,
+      "a_teu_m2": 12.0,
+      "area_b_m2": 81364.3
+     }
+    ],
+    "groups": {
+     "main": {
+      "blocks": 25,
+      "block_length_m": 195.0,
+      "block_width_m": 24.4,
+      "ground_slots": 4381.72
+     },
+     "reefer": {
+      "blocks": 2,
+      "block_length_m": 195.0,
+      "block_width_m": 24.4,
+      "ground_slots": 218.322
+     },
+     "empty": {
+      "blocks": 5,
+      "block_length_m": 195.0,
+      "block_width_m": 17.4,
+      "ground_slots": 862.506
+     }
+    },
+    "yard": {
+     "area_method_a_m2": 275328.0,
+     "area_method_b_m2": 349739.0,
+     "capacity_teu": 22883.0,
+     "inventory_teu": 13729.8
+    },
+    "equipment": [
+     [
+      "STS",
+      9
+     ],
+     [
+      "RTG",
+      26
+     ],
+     [
+      "ECH",
+      3
+     ],
+     [
+      "TT",
+      40
+     ]
+    ],
+    "gate": {
+     "lanes_in": 5,
+     "lanes_out": 3,
+     "peak_per_hour": 46.951
+    },
+    "areas": {
+     "width_m": 720.0,
+     "depth_m": 521.38,
+     "total_m2": 375394.0,
+     "m2_per_m": 521.38
+    },
+    "benchmarks": [
+     [
+      "teu_per_m",
+      1180.56,
+      true
+     ],
+     [
+      "moves_per_sts",
+      60931.9,
+      true
+     ],
+     [
+      "teu_per_sts",
+      94444.4,
+      true
+     ],
+     [
+      "m2_per_m",
+      521.38,
+      true
+     ],
+     [
+      "ha_per_berth",
+      12.5131,
+      true
+     ],
+     [
+      "teu_per_m2_yard",
+      3.08723,
+      true
+     ],
+     [
+      "m_quay_per_sts",
+      80.0,
+      true
+     ]
+    ],
+    "warnings": [
+     "STS_PER_BERTH"
+    ],
+    "blocks": [
+     [
+      "A01",
+      140.0,
+      86.18,
+      0.0
+     ],
+     [
+      "A02",
+      360.0,
+      86.18,
+      0.0
+     ],
+     [
+      "A03",
+      580.0,
+      86.18,
+      0.0
+     ],
+     [
+      "A04",
+      140.0,
+      116.58,
+      0.0
+     ],
+     [
+      "A05",
+      360.0,
+      116.58,
+      0.0
+     ],
+     [
+      "A06",
+      580.0,
+      116.58,
+      0.0
+     ],
+     [
+      "A07",
+      140.0,
+      146.98,
+      0.0
+     ],
+     [
+      "A08",
+      360.0,
+      146.98,
+      0.0
+     ],
+     [
+      "A09",
+      580.0,
+      146.98,
+      0.0
+     ],
+     [
+      "A10",
+      140.0,
+      186.38,
+      0.0
+     ],
+     [
+      "A11",
+      360.0,
+      186.38,
+      0.0
+     ],
+     [
+      "A12",
+      580.0,
+      186.38,
+      0.0
+     ],
+     [
+      "A13",
+      140.0,
+      216.78,
+      0.0
+     ],
+     [
+      "A14",
+      360.0,
+      216.78,
+      0.0
+     ],
+     [
+      "A15",
+      580.0,
+      216.78,
+      0.0
+     ],
+     [
+      "A16",
+      140.0,
+      247.18,
+      0.0
+     ],
+     [
+      "A17",
+      360.0,
+      247.18,
+      0.0
+     ],
+     [
+      "A18",
+      580.0,
+      247.18,
+      0.0
+     ],
+     [
+      "A19",
+      140.0,
+      286.58,
+      0.0
+     ],
+     [
+      "A20",
+      360.0,
+      286.58,
+      0.0
+     ],
+     [
+      "A21",
+      580.0,
+      286.58,
+      0.0
+     ],
+     [
+      "A22",
+      140.0,
+      316.98,
+      0.0
+     ],
+     [
+      "A23",
+      360.0,
+      316.98,
+      0.0
+     ],
+     [
+      "A24",
+      580.0,
+      316.98,
+      0.0
+     ],
+     [
+      "A25",
+      140.0,
+      347.38,
+      0.0
+     ],
+     [
+      "R01",
+      360.0,
+      347.38,
+      0.0
+     ],
+     [
+      "R02",
+      580.0,
+      347.38,
+      0.0
+     ],
+     [
+      "E01",
+      140.0,
+      383.28,
+      0.0
+     ],
+     [
+      "E02",
+      360.0,
+      383.28,
+      0.0
+     ],
+     [
+      "E03",
+      580.0,
+      383.28,
+      0.0
+     ],
+     [
+      "E04",
+      250.0,
+      417.68,
+      0.0
+     ],
+     [
+      "E05",
+      470.0,
+      417.68,
       0.0
      ]
     ],

@@ -9,8 +9,8 @@ import SizingDrawing from "../components/SizingDrawing";
 import { Badge, Button, Card, Chart, ErrorBox, Modal, Table, inputCls } from "../components/ui";
 import { fmt, pct } from "../lib/format";
 import {
-  DEFAULTS, FLOW_KEYS, FLOW_LABEL, LIMIT_OF, SIZING_VERSION, SYSTEM_LABEL, SYSTEM_PRESET, SYSTEMS, getPath, inputsFromScenario,
-  setPath, tryCompute, withDefaults, wsRatio, type SizingInputs, type SizingResult, type YardSystem,
+  DEFAULTS, FLOW_KEYS, FLOW_LABEL, LENGTH_RULE_LABEL, LIMIT_OF, STS_RULE_LABEL, SIZING_VERSION, SYSTEM_LABEL, SYSTEM_PRESET, SYSTEMS, getPath, inputsFromScenario,
+  setPath, tryCompute, withDefaults, wsRatio, type LengthRule, type SizingInputs, type SizingResult, type StsRule, type YardSystem,
 } from "../lib/sizing";
 import { can, useAuth } from "../store/auth";
 
@@ -278,24 +278,26 @@ export default function SizingPage() {
               <select className={inputCls} value="" onChange={(e) => {
                 const row = PIANC_VESSELS[Number(e.target.value)];
                 if (!row) return;
-                set("vessels.classes", [...classes, { name: `${row[0]} TEU`, capacity_teu: row[0], loa_m: row[1], beam_m: row[2], draft_m: row[3], share: 0 }]);
+                // STS per vessel by size (typical practice): feeder 2, ≤ 3.500 TEU 3, ≤ 7.100 TEU 4, larger 5–6
+                const sts = row[0] <= 1700 ? 2 : row[0] <= 3500 ? 3 : row[0] <= 7100 ? 4 : row[0] <= 12000 ? 5 : 6;
+                set("vessels.classes", [...classes, { name: `${row[0]} TEU`, capacity_teu: row[0], loa_m: row[1], beam_m: row[2], draft_m: row[3], share: 0, sts }]);
               }}>
                 <option value="">Chọn…</option>
                 {PIANC_VESSELS.map((v, i) => <option key={i} value={i}>{`${v[0].toLocaleString("vi-VN")} TEU – LOA ${v[1]} m`}</option>)}
               </select></label>
             <div className="col-span-2">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-[11px] font-normal text-slate-500"><th>Tên</th><th>TEU</th><th>LOA m</th><th>B m</th><th>Mớn m</th><th>%</th><th /></tr></thead>
+                <thead><tr className="text-left text-[11px] font-normal text-slate-500"><th>Tên</th><th>TEU</th><th>LOA m</th><th>B m</th><th>Mớn m</th><th>%</th><th title="Số STS cùng làm hàng cho một tàu của lớp này">STS</th><th /></tr></thead>
                 <tbody>
                   {classes.map((v, i) => (
                     <tr key={i}>
-                      <td className="pr-0.5"><input className={`${inputCls} w-[76px] px-1`} value={v.name} onChange={(e) => set(`vessels.classes.${i}.name`, e.target.value)} /></td>
-                      {(["capacity_teu", "loa_m", "beam_m", "draft_m", "share"] as const).map((k) => {
+                      <td className="pr-0.5"><input className={`${inputCls} w-[64px] !px-1 !text-[11px]`} value={v.name} onChange={(e) => set(`vessels.classes.${i}.name`, e.target.value)} /></td>
+                      {(["capacity_teu", "loa_m", "beam_m", "draft_m", "share", "sts"] as const).map((k) => {
                         const p = `vessels.classes.${i}.${k}`;
                         const sc = k === "share" ? 100 : 1;
                         const val = getPath(inputs, p);
                         return (
-                          <td key={k} className="pr-0.5"><input inputMode="decimal" title={issueMap[p] || ""} className={`${inputCls} ${k === "capacity_teu" ? "w-[52px]" : "w-[46px]"} px-1 ${issueMap[p] ? "border-red-500 bg-red-50" : ""}`}
+                          <td key={k} className="pr-0.5"><input inputMode="decimal" title={issueMap[p] || ""} className={`${inputCls} ${k === "capacity_teu" ? "w-[50px]" : k === "sts" ? "w-[32px]" : "w-[42px]"} !px-1 !text-[11px] ${issueMap[p] ? "border-red-500 bg-red-50" : ""}`}
                             defaultValue={typeof val === "number" ? String(Number((val * sc).toPrecision(8))) : String(val ?? "")}
                             key={`${i}-${k}-${JSON.stringify(val)}`}
                             onBlur={(e) => { const n = Number(e.target.value.replace(",", ".")); set(p, Number.isFinite(n) && e.target.value.trim() ? n / sc : e.target.value); }} /></td>
@@ -307,19 +309,29 @@ export default function SizingPage() {
                 </tbody>
               </table>
               {issueMap["vessels.classes"] && <p className="text-[11px] text-red-600">{issueMap["vessels.classes"]}</p>}
-              <p className="mt-1 text-[11px] text-slate-500">Tàu có LOA lớn nhất là tàu thiết kế. Tổng % chuyến khác 100% sẽ được chuẩn hoá.</p>
+              <p className="mt-1 text-[11px] text-slate-500">Tàu có LOA lớn nhất là tàu thiết kế; lớp có % chuyến lớn nhất là tàu thường gặp. STS: số cẩu cùng làm hàng cho một tàu của lớp đó (để trống = "STS mặc định" ở nhóm C). Tổng % chuyến khác 100% sẽ được chuẩn hoá.</p>
             </div>
           </Group>
 
           <Group title="C. Bến">
-            {field("berth.sts_per_ship", "STS mỗi tàu", "chiếc")}
-            {field("berth.sts_per_berth", "STS bố trí mỗi bến", "chiếc")}
+            <label className="col-span-2 flex flex-col gap-0.5 text-xs"><span className="text-slate-700">Cách tính tổng số STS</span>
+              <select className={inputCls} value={inputs.berth.sts_rule} onChange={(e) => set("berth.sts_rule", e.target.value as StsRule)}>
+                {(Object.keys(STS_RULE_LABEL) as StsRule[]).map((k) => <option key={k} value={k}>{STS_RULE_LABEL[k]}</option>)}
+              </select></label>
+            {field("berth.sts_per_ship", "STS mặc định mỗi tàu", "chiếc")}
+            {field("berth.sts_spare", "STS dự phòng", "chiếc")}
+            {inputs.berth.sts_rule === "per_berth" && field("berth.sts_per_berth", "STS bố trí mỗi bến", "chiếc")}
+            {inputs.berth.sts_rule === "per_berth" && <span />}
             {field("berth.gcr_mph", "Năng suất gộp STS", "cont/h")}
             {field("berth.efficiency", "Hệ số hiệu quả η", "-")}
             {field("berth.t0_h", "Cập / rời T0", "h")}
             {field("berth.availability", "Khai thác được A_w", "%", 100)}
             {field("berth.ws_target", "W/S mục tiêu", "%", 100)}
             {field("berth.gap_m", "Khe hở tàu B_gap", "m")}
+            <label className="col-span-2 flex flex-col gap-0.5 text-xs"><span className="text-slate-700">Cách tính chiều dài bến</span>
+              <select className={inputCls} value={inputs.berth.length_rule} onChange={(e) => set("berth.length_rule", e.target.value as LengthRule)}>
+                {(Object.keys(LENGTH_RULE_LABEL) as LengthRule[]).map((k) => <option key={k} value={k}>{LENGTH_RULE_LABEL[k][0].toUpperCase() + LENGTH_RULE_LABEL[k].slice(1)}</option>)}
+              </select></label>
             <label className="flex flex-col gap-0.5 text-xs"><span className="text-slate-700">Kiểm soát giờ tàu đến</span>
               <select className={inputCls} value={inputs.berth.arrival_control} onChange={(e) => set("berth.arrival_control", e.target.value)}>
                 <option value="none">Không</option><option value="average">Trung bình</option><option value="high">Cao (lịch cố định)</option>
@@ -394,7 +406,7 @@ export default function SizingPage() {
                 <Kpi value={`${r.berth.n_berths} bến`} label={`W/S ${fmt(r.berth.ws ?? 0, 3)} · φ ${pct(r.berth.occupancy)}`}
                   sub={`chờ TB ≈ ${fmt(r.berth.wait_h, 1)} h/chuyến`} tone={r.warnings.some((w) => w.code === "BERTHS_NOT_ENOUGH") ? "warn" : undefined} />
                 <Kpi value={`${fmt(r.quay.length_m)} m`} label="chiều dài tuyến bến" sub={`${fmt(r.quay.teu_per_m)} TEU/m · apron ${fmt(r.quay.apron_m, 1)} m`} />
-                <Kpi value={`${r.sts.count} STS`} label={`${fmt(r.sts.moves_per_sts)} cont/STS/năm`} sub={`theo bến ${r.sts.by_berth}, theo sản lượng ${r.sts.by_throughput}`} />
+                <Kpi value={`${r.sts.count} STS`} label={`${fmt(r.sts.moves_per_sts)} cont/STS/năm`} sub={`theo bến ${r.sts.per_berth.join(" + ")}${r.sts.spare ? ` (gồm ${r.sts.spare} dự phòng)` : ""}; theo sản lượng ≥ ${r.sts.by_throughput}`} />
                 <Kpi value={`${r.yard.blocks} khối`} label={SYSTEM_LABEL[r.yard.system]}
                   sub={`${r.yard.groups.main.rows} × ${r.yard.groups.main.bays} TEU × ${r.yard.groups.main.tiers} tầng · ${fmt(r.yard.capacity_teu)} TEU`} />
                 <Kpi value={`${fmt(r.areas.total_m2 / 1e4, 1)} ha`} label={`cảng ${fmt(r.areas.width_m)} × ${fmt(r.areas.depth_m)} m`}
@@ -448,8 +460,11 @@ function BerthTab({ r }: { r: SizingResult }) {
   return (
     <div className="space-y-3 text-sm">
       <p>Tàu TB {fmt(v.cap_avg_teu)} TEU, xếp dỡ {fmt(v.call_teu)} TEU = {fmt(v.moves_per_call)} cont/chuyến → <b>{fmt(v.calls_year)} chuyến/năm</b> ({fmt(v.calls_week, 1)}/tuần).
-        Thời gian làm hàng T_s = {fmt(b.service_h, 2)} h; cần {fmt(b.berth_hours)} giờ-bến/năm, mỗi bến khai thác được {fmt(b.available_h)} h/năm.
+        Thời gian làm hàng bình quân theo lớp tàu T_s = {fmt(b.service_h, 2)} h; cần {fmt(b.berth_hours)} giờ-bến/năm, mỗi bến khai thác được {fmt(b.available_h)} h/năm.
         Tàu thiết kế: {v.design.name} (LOA {v.design.loa_m} m, B {v.design.beam_m} m, mớn {v.design.draft_m} m).</p>
+      <Table head={["Lớp tàu", "% chuyến", "STS/tàu", "Cont/chuyến", "T_s (h)", "Chuyến/năm"]}
+        rows={v.classes.map((pc) => [pc.name, pct(pc.share), pc.sts_used < pc.sts ? <span key="s" className="text-amber-700" title={`Cần ${pc.sts}, mỗi bến chỉ có ${pc.sts_used}`}>{pc.sts_used} / {pc.sts}</span> : pc.sts,
+          fmt(pc.moves_per_call), fmt(pc.service_h, 2), fmt(pc.calls_year)])} />
       <Table head={["Số bến", "φ", "W/S", "Đạt W/S", "Ngưỡng Thoresen", "φ tối đa", "Năng lực tối đa (TEU/năm)"]}
         rows={b.table.map((t) => [
           <b key="n" className={t.n === b.n_berths ? "text-navy" : ""}>{t.n}{t.n === b.n_berths ? " ✔" : ""}</b>, pct(t.occupancy),
@@ -457,7 +472,9 @@ function BerthTab({ r }: { r: SizingResult }) {
           <span key="t" className={t.thoresen_ok ? "" : "text-amber-700"}>{pct(t.thoresen_limit)}</span>, pct(t.occupancy_max), fmt(t.capacity_teu)])} />
       <p className="text-xs text-slate-500">Cột cuối = sản lượng lớn nhất mà số bến đó còn giữ được W/S mục tiêu – mốc phải mở thêm bến. 1–3 bến: bảng UNCTAD E2/E2/n (PIANC 135 Bảng 3.10); từ 4 bến: Erlang C × 0,38.</p>
       <Chart option={option} height={260} />
-      <p>Chiều dài tuyến bến: WG 185 = {fmt(r.quay.length_wg185_m, 1)} m; theo tàu thiết kế = {fmt(r.quay.length_fixed_m, 1)} m → <b>{fmt(r.quay.length_m)} m</b> ({fmt(r.quay.berth_length_m, 1)} m/bến).
+      <p>Chiều dài tuyến bến: WG 185 = {fmt(r.quay.length_wg185_m, 1)} m; bến cố định theo tàu thiết kế = {fmt(r.quay.length_fixed_m, 1)} m;
+        1 bến tàu lớn nhất + bến tàu thường gặp = {fmt(r.quay.length_mixed_m, 1)} m → chọn theo "{LENGTH_RULE_LABEL[r.quay.length_rule]}": <b>{fmt(r.quay.length_m)} m</b>
+        ({r.layout.berths.map((bt) => `${bt.code} ${fmt(bt.x1 - bt.x0)} m, ${bt.sts} STS`).join("; ")}).
         Hố neo đậu (tham khảo): dài {fmt(r.quay.pocket.length_tug_m)} m có tàu lai ({fmt(r.quay.pocket.length_no_tug_m)} m không lai), rộng {fmt(r.quay.pocket.width_m, 1)} m, sâu {fmt(r.quay.pocket.depth_m, 1)} m.</p>
     </div>
   );

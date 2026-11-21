@@ -99,7 +99,6 @@ function Plan({ r, svgRef }: { r: SizingResult; svgRef: React.RefObject<SVGSVGEl
     setView({ ...d.v, x: d.v.x - (e.clientX - d.x) / rect.width * d.v.w, y: d.v.y - (e.clientY - d.y) / rect.height * d.v.h });
   }
 
-  const stsPer = r.inputs.berth.sts_per_berth;
   const groupsShown = (["main", "reefer", "empty"] as Group[]).filter((g) => r.yard.groups[g].blocks > 0);
   const mid = W / 2;
   const by1 = D - 5;
@@ -111,18 +110,19 @@ function Plan({ r, svgRef }: { r: SizingResult; svgRef: React.RefObject<SVGSVGEl
       <rect x={full.x} y={-water} width={full.w} height={water} fill={WATER} />
       {/* berths + design vessels + STS */}
       {lay.berths.map((b, i) => {
-        const len = Math.min(r.vessels.design.loa_m, b.x1 - b.x0 - 4);
+        const len = Math.min(b.vessel_loa_m, b.x1 - b.x0 - 4);
+        const vb = b.vessel_beam_m;
         const cx = (b.x0 + b.x1) / 2;
         return (
           <g key={b.code}>
             <rect x={b.x0} y={-1.25 * beam} width={b.x1 - b.x0} height={1.25 * beam} fill="none" stroke="#5DADE2" strokeDasharray={`${fs / 2} ${fs / 3}`} strokeWidth={fs / 12} />
-            <rect x={cx - len / 2} y={-beam - 2} width={len} height={beam} rx={beam / 2} fill={SHIP} opacity={0.85}>
-              <title>{`${b.code}: tàu thiết kế ${r.vessels.design.name}, LOA ${r.vessels.design.loa_m} m, B ${beam} m`}</title>
+            <rect x={cx - len / 2} y={-vb - 2} width={len} height={vb} rx={vb / 2} fill={SHIP} opacity={0.85}>
+              <title>{`${b.code}: ${b.vessel}, LOA ${b.vessel_loa_m} m, B ${vb} m; bến dài ${(b.x1 - b.x0).toFixed(0)} m, ${b.sts} STS`}</title>
             </rect>
-            <text x={cx} y={-beam / 2 - 2 + fs / 3} fontSize={fs} fill="#fff" textAnchor="middle">{b.code}</text>
-            {Array.from({ length: stsPer }, (_, k) => {
-              const x = b.x0 + (b.x1 - b.x0) * (k + 1) / (stsPer + 1);
-              return <rect key={k} x={x - 4} y={-beam * 0.9} width={8} height={beam * 0.9 + r.inputs.apron.edge_m + r.inputs.apron.rail_span_m} fill={STS} opacity={0.85}><title>{`STS tại ${b.code}`}</title></rect>;
+            <text x={cx} y={-vb / 2 - 2 + fs / 3} fontSize={fs} fill="#fff" textAnchor="middle">{b.code}</text>
+            {Array.from({ length: b.sts }, (_, k) => {
+              const x = b.x0 + (b.x1 - b.x0) * (k + 1) / (b.sts + 1);
+              return <rect key={k} x={x - 4} y={-vb * 0.9} width={8} height={vb * 0.9 + r.inputs.apron.edge_m + r.inputs.apron.rail_span_m} fill={STS} opacity={0.85}><title>{`STS tại ${b.code}`}</title></rect>;
             })}
             {i > 0 && <line x1={b.x0} y1={-1.25 * beam} x2={b.x0} y2={0} stroke="#5DADE2" strokeWidth={fs / 10} />}
           </g>

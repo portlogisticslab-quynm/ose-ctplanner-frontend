@@ -6,7 +6,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export const SIZING_FORMAT = "ctplanner-sizing/1";
-export const SIZING_VERSION = "pianc-2026.11.1";
+export const SIZING_VERSION = "pianc-2026.11.2"; // V1.7.2: STS per vessel class, STS and quay-length rules
 const HOURS_YEAR = 8760;
 
 const WS_TABLE: Record<number, [number, number][]> = {
@@ -29,6 +29,13 @@ export type FlowKey = (typeof FLOW_KEYS)[number];
 export const FLOW_LABEL: Record<FlowKey, string> = { import: "Nhập", export: "Xuất", transship: "Trung chuyển", dg: "Nguy hiểm", reefer: "Lạnh", empty: "Rỗng" };
 const FLOW_GROUP: Record<FlowKey, Group> = { import: "main", export: "main", transship: "main", dg: "main", reefer: "reefer", empty: "empty" };
 export type Group = "main" | "reefer" | "empty";
+export type StsRule = "mixed" | "per_berth";
+export type LengthRule = "max" | "wg185" | "fixed" | "mixed";
+export const STS_RULE_LABEL: Record<StsRule, string> = { mixed: "Tàu lớn nhất + (n − 1) × tàu thường gặp", per_berth: "Số bến × STS mỗi bến" };
+export const LENGTH_RULE_LABEL: Record<LengthRule, string> = {
+  max: "lớn hơn của WG 185 và tàu thiết kế", wg185: "PIANC WG 185 (tuyến bến liền)", fixed: "bến cố định theo tàu thiết kế",
+  mixed: "1 bến tàu lớn nhất + bến tàu thường gặp",
+};
 /** Typical block shape per yard system (set when the system changes in the tab). */
 export const SYSTEM_PRESET: Record<YardSystem, { rows: number; bays: number; tiers: number; block_gap_m: number }> = {
   RTG: { rows: 6, bays: 30, tiers: 5, block_gap_m: 6 },
@@ -44,7 +51,7 @@ export function blockDimensions(system: string, rows: number, bays: number): [nu
   return [bays * SLOT_LENGTH_M, rows * SLOT_WIDTH_M[system] + EXTRA_WIDTH_M[system]];
 }
 
-export interface VesselClass { name: string; capacity_teu: number; loa_m: number; beam_m: number; draft_m: number; share: number }
+export interface VesselClass { name: string; capacity_teu: number; loa_m: number; beam_m: number; draft_m: number; share: number; sts: number | null }
 export interface SizingInputs {
   project: { code: string; name: string; location: string };
   cargo: {
@@ -55,6 +62,7 @@ export interface SizingInputs {
   berth: {
     sts_per_ship: number; gcr_mph: number; efficiency: number; t0_h: number; availability: number; ws_target: number; gap_m: number;
     arrival_control: "none" | "average" | "high"; sts_per_berth: number; sts_moves_year: number; min_berths: number; max_berths: number;
+    sts_rule: StsRule; sts_spare: number; length_rule: LengthRule;
   };
   apron: { edge_m: number; rail_span_m: number; backreach_m: number; lanes: number; lane_width_m: number };
   yard: {
@@ -80,14 +88,15 @@ export const DEFAULTS: SizingInputs = {
   },
   vessels: {
     exchange_ratio: 0.7, classes: [
-      { name: "Feeder 600 TEU", capacity_teu: 600, loa_m: 135, beam_m: 20.8, draft_m: 7.6, share: 0.3 },
-      { name: "Feeder 1000 TEU", capacity_teu: 1000, loa_m: 158, beam_m: 23.3, draft_m: 8.7, share: 0.4 },
-      { name: "Feeder 1300 TEU", capacity_teu: 1300, loa_m: 177, beam_m: 25.4, draft_m: 9.5, share: 0.3 },
+      { name: "Feeder 600 TEU", capacity_teu: 600, loa_m: 135, beam_m: 20.8, draft_m: 7.6, share: 0.3, sts: 2 },
+      { name: "Feeder 1000 TEU", capacity_teu: 1000, loa_m: 158, beam_m: 23.3, draft_m: 8.7, share: 0.4, sts: 2 },
+      { name: "Feeder 1300 TEU", capacity_teu: 1300, loa_m: 177, beam_m: 25.4, draft_m: 9.5, share: 0.3, sts: 2 },
     ],
   },
   berth: {
     sts_per_ship: 2, gcr_mph: 25, efficiency: 0.85, t0_h: 2, availability: 0.95, ws_target: 0.1, gap_m: 20,
     arrival_control: "average", sts_per_berth: 2, sts_moves_year: 100000, min_berths: 1, max_berths: 8,
+    sts_rule: "mixed", sts_spare: 0, length_rule: "max",
   },
   apron: { edge_m: 3, rail_span_m: 30.48, backreach_m: 15, lanes: 3, lane_width_m: 3.5 },
   yard: {
@@ -115,6 +124,7 @@ export const LIMITS: [string, number, number, string][] = [
   ["berth.gap_m", 0, 100, "Khe hở tàu"], ["berth.sts_per_berth", 1, 12, "STS mỗi bến"],
   ["berth.sts_moves_year", 10000, 400000, "Năng lực năm mỗi STS"],
   ["berth.min_berths", 1, 20, "Số bến tối thiểu"], ["berth.max_berths", 1, 20, "Số bến tối đa"],
+  ["berth.sts_spare", 0, 20, "STS dự phòng"],
   ["apron.edge_m", 0, 20, "Khoảng mép bến–ray"], ["apron.rail_span_m", 0, 60, "Khẩu độ ray"],
   ["apron.backreach_m", 0, 60, "Back-reach"], ["apron.lanes", 0, 12, "Số làn sau ray"],
   ["apron.lane_width_m", 2.5, 8, "Bề rộng làn"],
@@ -135,7 +145,7 @@ export const LIMITS: [string, number, number, string][] = [
   ["thoresen.H", 0.3, 1, "Thoresen H"], ["thoresen.Bf", 0, 0.5, "Thoresen Bf"], ["thoresen.N", 0.3, 1, "Thoresen N"],
   ["thoresen.L", 0.3, 1, "Thoresen L"], ["thoresen.S", 0.3, 1, "Thoresen S"],
 ];
-const INT_KEYS = new Set(["berth.sts_per_ship", "berth.sts_per_berth", "berth.min_berths", "berth.max_berths", "apron.lanes",
+const INT_KEYS = new Set(["berth.sts_per_ship", "berth.sts_per_berth", "berth.sts_spare", "berth.min_berths", "berth.max_berths", "apron.lanes",
   "yard.rows", "yard.tiers", "yard.bays", "yard.rows_per_road", "yard.reefer_tiers", "yard.empty_tiers", "yard.empty_rows"]);
 export const LIMIT_OF: Record<string, [number, number]> = Object.fromEntries(LIMITS.map(([p, lo, hi]) => [p, [lo, hi]]));
 
@@ -222,12 +232,21 @@ export function normalize(inputs: unknown): SizingInputs {
       if (n === null || n < lo || n > hi) bad(`vessels.classes.${i}.${k}`, `${row.name}: ${k} phải trong ${g(lo)}–${g(hi)}`);
       row[k] = n !== null ? n : 0;
     }
+    const st = v.sts;
+    if (st === null || st === undefined || st === "") row.sts = null;
+    else {
+      const ns = num(st);
+      if (ns === null || ns < 1 || ns > 12) { bad(`vessels.classes.${i}.sts`, `${row.name}: STS/tàu phải trong 1–12`); row.sts = null; }
+      else row.sts = roundHalfEven(ns);
+    }
     clean.push(row);
   });
   x.vessels.classes = clean;
   if (clean.length && !issues.length && clean.reduce((s, v) => s + v.share, 0) <= 0) bad("vessels.classes", "Tổng tỷ lệ chuyến của các lớp tàu phải > 0");
   if (!SYSTEMS.includes(x.yard.system)) bad("yard.system", "Hệ bãi phải là RTG, RMG hoặc ASC");
   if (!["TT", "AGV"].includes(x.equipment.horizontal)) bad("equipment.horizontal", "Thiết bị vận chuyển ngang phải là TT hoặc AGV");
+  if (!["mixed", "per_berth"].includes(x.berth.sts_rule)) bad("berth.sts_rule", "Cách tính số STS: mixed hoặc per_berth");
+  if (!["max", "wg185", "fixed", "mixed"].includes(x.berth.length_rule)) bad("berth.length_rule", "Cách tính chiều dài bến: max, wg185, fixed hoặc mixed");
   if (!(x.berth.arrival_control in ARRIVAL)) bad("berth.arrival_control", "Mức kiểm soát giờ tàu: none, average hoặc high");
   if (!issues.length && x.berth.min_berths > x.berth.max_berths) bad("berth.min_berths", "Số bến tối thiểu lớn hơn tối đa");
   for (const k of ["site_length_m", "site_depth_m"]) {
@@ -244,6 +263,7 @@ export function normalize(inputs: unknown): SizingInputs {
   p.name = (String(p.name || "Quy hoạch sơ bộ").trim() || "Quy hoạch sơ bộ").slice(0, 200);
   p.location = String(p.location || "").slice(0, 200);
   if (issues.length) throw new SizingInputError(issues);
+  for (const v of clean) if (v.sts === null) v.sts = x.berth.sts_per_ship;
   return x as SizingInputs;
 }
 
@@ -302,13 +322,15 @@ export interface BlockGroup { system: string; rows: number; bays: number; tiers:
 export interface Equip { category: string; type_code: string; quantity: number; area: string; rule: string; params: Record<string, number> }
 export interface Benchmark { key: string; label: string; value: number; low: number; high: number; ok: boolean; reference: string }
 export interface PlacedBlock { code: string; group: Group; cx: number; cy: number; length_m: number; width_m: number; rotation_deg: number }
-export interface Layout { width_m: number; depth_m: number; apron_m: number; yard_start_m: number; yard_end_m: number; back_m: number; yard_area_m2: number; blocks: PlacedBlock[]; berths: { code: string; x0: number; x1: number }[]; gap_m: number }
+export interface LayoutBerth { code: string; x0: number; x1: number; sts: number; vessel: string; vessel_loa_m: number; vessel_beam_m: number }
+export interface Layout { width_m: number; depth_m: number; apron_m: number; yard_start_m: number; yard_end_m: number; back_m: number; yard_area_m2: number; blocks: PlacedBlock[]; berths: LayoutBerth[]; gap_m: number }
+export interface ClassService { name: string; share: number; sts: number; sts_used: number; loa_m: number; moves_per_call: number; service_h: number; calls_year: number }
 export interface SizingResult {
   inputs: SizingInputs;
-  vessels: { cap_avg_teu: number; loa_mean_m: number; design: VesselClass; call_teu: number; moves_per_call: number; calls_year: number; calls_week: number };
+  vessels: { cap_avg_teu: number; loa_mean_m: number; design: VesselClass; typical: VesselClass; call_teu: number; moves_per_call: number; calls_year: number; calls_week: number; classes: ClassService[] };
   berth: { service_h: number; berth_hours: number; available_h: number; table: BerthRow[]; n_berths: number; occupancy: number; ws: number | null; wait_h: number; capacity_teu: number };
-  quay: { length_wg185_m: number; length_fixed_m: number; length_m: number; berth_length_m: number; apron_m: number; teu_per_m: number; pocket: { length_tug_m: number; length_no_tug_m: number; width_m: number; depth_m: number } };
-  sts: { count: number; by_berth: number; by_throughput: number; moves_year: number; moves_per_sts: number; teu_per_sts: number };
+  quay: { length_wg185_m: number; length_fixed_m: number; length_mixed_m: number; length_rule: LengthRule; length_m: number; berth_length_m: number; apron_m: number; teu_per_m: number; pocket: { length_tug_m: number; length_no_tug_m: number; width_m: number; depth_m: number } };
+  sts: { count: number; by_berth: number; by_throughput: number; spare: number; rule: StsRule; sts_max: number; sts_typical: number; per_berth: number[]; moves_year: number; moves_per_sts: number; teu_per_sts: number };
   yard: { system: YardSystem; flows: Flow[]; groups: Record<Group, BlockGroup>; inventory_teu: number; capacity_teu: number; ground_slots: number; blocks: number; area_method_b_m2: number; area_method_a_m2: number; block_area_m2: number; method_diff: number };
   equipment: Equip[];
   gate: { truck_visits_year: number; trucks_per_hour: number; peak_per_hour: number; lanes_in: number; lanes_out: number; peak_hour_share: number };
@@ -339,13 +361,23 @@ export function compute(inputs: unknown): SizingResult {
   classes.forEach((v, i) => { loaMean += w[i] * v.loa_m; });
   let design = classes[0];
   for (const v of classes) if (v.loa_m > design.loa_m || (v.loa_m === design.loa_m && v.capacity_teu > design.capacity_teu)) design = v;
+  let typical = classes[0];
+  for (const v of classes) if (v.share > typical.share) typical = v;
   const callTeu = capAvg * vs.exchange_ratio;
   const movesCall = callTeu / fTeu;
   const callsYear = C / callTeu;
-  const vessels = { cap_avg_teu: capAvg, loa_mean_m: loaMean, design: { ...design }, call_teu: callTeu, moves_per_call: movesCall, calls_year: callsYear, calls_week: callsYear / 52 };
+  // service time per class: its own call size and its own number of STS (V1.7.2); rule per_berth caps the STS
+  const capSts = b.sts_rule === "per_berth" ? b.sts_per_berth : 99;
+  const perClass: ClassService[] = classes.map((v, i) => {
+    const m = v.capacity_teu * vs.exchange_ratio / fTeu;
+    const used = Math.min(v.sts as number, capSts);
+    return { name: v.name, share: w[i], sts: v.sts as number, sts_used: used, loa_m: v.loa_m, moves_per_call: m, service_h: m / (used * b.gcr_mph * b.efficiency) + b.t0_h, calls_year: callsYear * w[i] };
+  });
+  const vessels = { cap_avg_teu: capAvg, loa_mean_m: loaMean, design: { ...design }, typical: { ...typical }, call_teu: callTeu, moves_per_call: movesCall, calls_year: callsYear, calls_week: callsYear / 52, classes: perClass };
 
   // berths
-  const serviceH = movesCall / (b.sts_per_ship * b.gcr_mph * b.efficiency) + b.t0_h;
+  let serviceH = 0;
+  for (const pc of perClass) serviceH += pc.share * pc.service_h;
   const berthHours = callsYear * serviceH;
   const availH = HOURS_YEAR * b.availability;
   const table: BerthRow[] = [];
@@ -373,21 +405,32 @@ export function compute(inputs: unknown): SizingResult {
   const gap = b.gap_m, n = chosen;
   const lqWg = n === 1 ? design.loa_m + 2 * gap : 1.1 * n * (loaMean + gap) + gap;
   const lqFixed = n * design.loa_m + (n + 1) * gap;
-  const lq = Math.ceil(Math.max(lqWg, lqFixed) / 10) * 10;
+  const lqMixed = design.loa_m + (n - 1) * loaMean + (n + 1) * gap;
+  const lqRaw = { max: Math.max(lqWg, lqFixed), wg185: lqWg, fixed: lqFixed, mixed: lqMixed }[b.length_rule];
+  const lq = Math.ceil(lqRaw / 10) * 10;
   let apronM = ap.edge_m + ap.rail_span_m + ap.backreach_m + ap.lanes * ap.lane_width_m;
   if (y.system === "ASC") apronM = Math.max(apronM, 100);
   const quay = {
-    length_wg185_m: lqWg, length_fixed_m: lqFixed, length_m: lq, berth_length_m: lq / n, apron_m: apronM, teu_per_m: C / lq,
+    length_wg185_m: lqWg, length_fixed_m: lqFixed, length_mixed_m: lqMixed, length_rule: b.length_rule, length_m: lq, berth_length_m: lq / n, apron_m: apronM, teu_per_m: C / lq,
     pocket: { length_tug_m: 1.25 * design.loa_m, length_no_tug_m: 1.5 * design.loa_m, width_m: 1.25 * design.beam_m, depth_m: design.draft_m * 1.1 },
   };
 
   // STS
   const movesYear = C / fTeu;
-  const byBerth = n * b.sts_per_berth;
+  const stsMax = Math.max(...classes.map((v) => v.sts as number));
+  const stsTyp = typical.sts as number;
+  let base: number[];
+  if (b.sts_rule === "mixed") base = [stsMax, ...Array(n - 1).fill(stsTyp)];
+  else {
+    base = Array(n).fill(b.sts_per_berth);
+    if (stsMax > b.sts_per_berth) warn("STS_PER_BERTH", `Lớp tàu cần ${stsMax} STS nhưng mỗi bến chỉ bố trí ${b.sts_per_berth}: đã tính thời gian làm hàng của tàu đó với ${b.sts_per_berth} STS`);
+  }
+  const byBerth = base.reduce((a, v) => a + v, 0);
   const byThr = Math.ceil(movesYear / b.sts_moves_year);
-  const nSts = Math.max(byBerth, byThr);
-  if (b.sts_per_ship > b.sts_per_berth) warn("STS_PER_BERTH", "Số STS mỗi tàu lớn hơn số STS bố trí mỗi bến");
-  const sts = { count: nSts, by_berth: byBerth, by_throughput: byThr, moves_year: movesYear, moves_per_sts: movesYear / nSts, teu_per_sts: C / nSts };
+  const nSts = Math.max(byBerth, byThr) + b.sts_spare;
+  const perBerth = [...base];
+  for (let k = 0; k < nSts - byBerth; k++) perBerth[k % n] += 1;
+  const sts = { count: nSts, by_berth: byBerth, by_throughput: byThr, spare: b.sts_spare, rule: b.sts_rule, sts_max: stsMax, sts_typical: stsTyp, per_berth: perBerth, moves_year: movesYear, moves_per_sts: movesYear / nSts, teu_per_sts: C / nSts };
 
   // yard flows
   const ts = c.transship_share;
@@ -427,7 +470,7 @@ export function compute(inputs: unknown): SizingResult {
     ground_slots: gs.main + gs.reefer + gs.empty, blocks: groups.main.blocks + groups.reefer.blocks + groups.empty.blocks,
     area_method_b_m2: sum(flows.map((f) => f.area_b_m2)), area_method_a_m2: 0, block_area_m2: 0, method_diff: 0,
   };
-  const lay = layout(x, lq, apronM, groups, n);
+  const lay = layout(x, lq, apronM, groups, n, design, typical, loaMean, perBerth);
   yard.area_method_a_m2 = lay.yard_area_m2;
   yard.block_area_m2 = sum((["main", "reefer", "empty"] as Group[]).map((k) => groups[k].blocks * groups[k].block_length_m * groups[k].block_width_m));
   yard.method_diff = yard.area_method_b_m2 ? (yard.area_method_a_m2 - yard.area_method_b_m2) / yard.area_method_b_m2 : 0;
@@ -450,7 +493,7 @@ export function compute(inputs: unknown): SizingResult {
   const hcat = eq.horizontal;
   const sp = pctS(eq.spare);
   const equipment: Equip[] = [
-    { category: "STS", type_code: "STS-QHSB", quantity: nSts, area: "Bến", rule: `max(${n} bến × ${b.sts_per_berth}; ${intS(movesYear)} cont ÷ ${intS(b.sts_moves_year)})`, params: { productivity_mph: b.gcr_mph, availability: 0.9 } },
+    { category: "STS", type_code: "STS-QHSB", quantity: nSts, area: "Bến", rule: `${b.sts_rule === "mixed" ? `max(${stsMax} + ${n - 1} × ${stsTyp}` : `max(${n} bến × ${b.sts_per_berth}`}; ${intS(movesYear)} cont ÷ ${intS(b.sts_moves_year)})${b.sts_spare ? ` + ${b.sts_spare} dự phòng` : ""}`, params: { productivity_mph: b.gcr_mph, availability: 0.9 } },
     { category: sysm, type_code: `${sysm}-QHSB`, quantity: nYard, area: "Bãi", rule: `${rule} × (1 + ${sp})`, params: { productivity_mph: { RTG: 20, RMG: 22, ASC: 20 }[sysm], availability: 0.9 } },
   ];
   if (nEch) equipment.push({ category: "ECH", type_code: "ECH-QHSB", quantity: nEch, area: "Bãi rỗng", rule: `${intS(emptyMoves)} lượt ÷ ${intS(eq.ech_moves_year)}/xe × (1 + ${sp})`, params: { productivity_mph: 15, availability: 0.9 } });
@@ -500,7 +543,22 @@ export function compute(inputs: unknown): SizingResult {
   return { inputs: x, vessels, berth, quay, sts, yard, equipment, gate, areas, site, benchmarks, warnings, layout: lay };
 }
 
-function layout(x: SizingInputs, lq: number, apronM: number, groups: Record<Group, BlockGroup>, nBerths: number): Layout {
+function berthSegments(x: SizingInputs, lq: number, n: number, design: VesselClass, typical: VesselClass, loaMean: number, sts: number[]): LayoutBerth[] {
+  const gap = x.berth.gap_m;
+  const need = x.berth.length_rule === "mixed" && n > 1 ? [design.loa_m + gap, ...Array(n - 1).fill(loaMean + gap)] : Array(n).fill(1);
+  const tot = need.reduce((a: number, v: number) => a + v, 0);
+  const out: LayoutBerth[] = [];
+  let x0 = 0;
+  for (let i = 0; i < n; i++) {
+    const x1 = i === n - 1 ? lq : x0 + lq * need[i] / tot;
+    const ship = i === 0 ? design : typical;
+    out.push({ code: `B${i + 1}`, x0, x1, sts: sts[i], vessel: ship.name, vessel_loa_m: ship.loa_m, vessel_beam_m: ship.beam_m });
+    x0 = x1;
+  }
+  return out;
+}
+
+function layout(x: SizingInputs, lq: number, apronM: number, groups: Record<Group, BlockGroup>, nBerths: number, design: VesselClass, typical: VesselClass, loaMean: number, sts: number[]): Layout {
   const { yard: y, land, berth: b } = x;
   const width = lq, m = land.margin_m, road = y.road_m;
   const y0 = apronM + road;
@@ -562,7 +620,7 @@ function layout(x: SizingInputs, lq: number, apronM: number, groups: Record<Grou
   return {
     width_m: width, depth_m: yardEnd + back, apron_m: apronM, yard_start_m: y0, yard_end_m: yardEnd, back_m: back,
     yard_area_m2: width * (yardEnd - apronM), blocks,
-    berths: Array.from({ length: nBerths }, (_, i) => ({ code: `B${i + 1}`, x0: i * lq / nBerths, x1: (i + 1) * lq / nBerths })),
+    berths: berthSegments(x, lq, nBerths, design, typical, loaMean, sts),
     gap_m: b.gap_m,
   };
 }
@@ -601,7 +659,8 @@ export function inputsFromScenario(sections: Record<string, any>, project?: { co
         const loa = Number(v.loa_m || 150);
         const cap = v.capacity_teu || Math.max(300, Math.min(18000, (loa - 100) * 13));
         return { name: v.name || "Tàu", capacity_teu: cap, loa_m: v.loa_m, beam_m: v.beam_m || Math.round(loa * 0.145 * 10) / 10,
-          draft_m: v.draft_m || Math.round(loa * 0.05 * 10) / 10, share: v.share !== null && v.share !== undefined ? v.share : 1 / vs.length };
+          draft_m: v.draft_m || Math.round(loa * 0.05 * 10) / 10, share: v.share !== null && v.share !== undefined ? v.share : 1 / vs.length,
+          ...(v.max_sts ? { sts: v.max_sts } : {}) };
       }),
     };
     const ex = vs.find((v) => v.exchange_ratio)?.exchange_ratio;
